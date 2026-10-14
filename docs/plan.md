@@ -113,7 +113,7 @@ Written test first.
 - Live energy drift readout. Exact potential energy is O(n^2), so it is computed every so often and not every frame. Drift is shown relative to the starting energy, which needs care for scenes whose total energy is near zero
 - Test: the figure-eight orbit returns close to its start after one period
 - Done when: all four presets run and each has its N, timestep and softening written down
-- Result: the four presets plus the single disk from phase 3. Settings and energy drift for each are in `results/presets.md`. The worst drift is 1.4e-03, for the black hole and cluster, and that comes from the tree (it drops to 1e-06 at theta 0)
+- Result: the four presets plus the single disk from phase 3. Settings and energy drift for each are in `results/presets.md`. The worst drift is 1.4e-03, for the black hole and cluster at 1000 stars, and that comes from the tree (at 2000 stars to t = 3.75 it is -9.5e-04 at theta 0.7 and -9.6e-07 at theta 0)
 - Settled: the energy sum runs a few rows per frame on a frozen copy of the bodies. The step cap became a 12 ms time budget per frame, since a fixed step count does not fit a speed slider. A spawned body starts on a circular orbit around everything
 - Found while building it: the galaxy collision needs softening 0.05, not 0.01, or stars flung through the other galaxy's center wreck the energy (9% jump). The solar system's Jupiter had to move out to 3.0, because at 2.2 it pulled its neighbor 1.4% off its circle
 

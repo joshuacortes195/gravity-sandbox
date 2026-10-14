@@ -254,13 +254,13 @@ A ball of stars at rest collapses, and one with too much speed flies apart. It h
 
 What tears it apart is the tide. Near the black hole, the side of the cluster facing it gets pulled harder than the far side. When that difference beats the cluster's own pull, the cluster stretches into a stream. A rough rule is the tidal radius, r_p * (m / 3M)^(1/3), which is 0.15 * (0.01 / 3)^(1/3) = 0.022 here. The cluster's radius is 0.1, so it gets shredded.
 
-The energy drift here, about 1e-3, comes from the tree. Halving the timestep does nothing, and at theta 0 the drift drops to 1e-06. A tightly packed cluster is the tree's worst case: every star is close to many others, so little can be lumped together. That also makes it slower per body than the disk.
+The energy drift here, about 1e-3, comes from the tree. Halving the timestep does nothing, and with 2000 stars at t = 3.75 the drift drops from -9.5e-04 at theta 0.7 to -9.6e-07 at theta 0. A tightly packed cluster is the tree's worst case: every star is close to many others, so little can be lumped together. That also makes it slower per body than the disk.
 
 ## The live energy readout
 
 Drift is (E - E0) / |E0|. Dividing by E0 breaks when E0 is near zero, because then a tiny change looks huge. I checked every preset's starting energy and none is near zero relative to its own kinetic and potential energy (`results/presets.md`).
 
-The potential energy is a sum over every pair, O(n^2): 50 million pairs at 10,000 bodies, far too slow for one frame. So the page freezes a copy of the bodies and adds up a few rows of the sum per frame, about 300,000 pairs worth, while the real sim keeps moving. When the last row is in, the readout updates and a new sum starts a second later. The copy matters: adding rows from bodies that keep moving would mix different moments and the total would mean nothing.
+The potential energy is a sum over every pair, O(n^2): 50 million pairs at 10,000 bodies, far too slow for one frame. So the page freezes a copy of the bodies and adds up a few rows of the sum per frame, about 300,000 pairs worth, while the real sim keeps moving. When the last row is in, the readout updates. A new sum starts once a second has passed since the last one started. The copy matters: adding rows from bodies that keep moving would mix different moments and the total would mean nothing.
 
 Spawning a body adds energy that was never in the system, so the drift would jump for no fault of the physics. A spawn resets the baseline: the next finished sum becomes the new zero. A spawned body starts on a circular orbit around everything, at sqrt(G * M_total / r), so it joins the scene instead of falling straight in. It also brings momentum the scene did not have, so after a click the whole scene slowly drifts. That shows most in the figure-eight, where a spawned body weighs 0.3 against a total of 3.
 
