@@ -27,7 +27,7 @@ TEST_CASE("a circular two body orbit returns to its start after one period") {
 
   for (int i = 0; i < 2; ++i) {
     CHECK(b.x[i] == doctest::Approx(start.x[i]).epsilon(1e-3));
-    CHECK(b.y[i] == doctest::Approx(start.y[i]).scale(1.0).epsilon(1e-3));
+    CHECK(b.y[i] == doctest::Approx(start.y[i]).epsilon(1e-3));
     CHECK(b.z[i] == 0.0f);
   }
 }
@@ -43,7 +43,7 @@ TEST_CASE("a quarter period moves the bodies a quarter turn") {
   run(b, steps / 4, dt, 0.0f);
 
   // the light body started at x = 0.75 moving toward +y
-  CHECK(b.x[1] == doctest::Approx(0.0).scale(1.0).epsilon(1e-3));
+  CHECK(b.x[1] == doctest::Approx(0.0).epsilon(1e-3));
   CHECK(b.y[1] == doctest::Approx(0.75).epsilon(1e-3));
 }
 
@@ -61,6 +61,21 @@ static double worst_energy_drift(Bodies& b, int steps, float dt, float eps) {
 
 // a stretched orbit: speed 0.7 of circular gives a period of 2 pi * a^1.5 with a = 1 / (2 - 0.49)
 const double stretched_period = 2.0 * pi * std::pow(1.0 / (2.0 - 0.49), 1.5);
+
+// checks the period formula for a stretched orbit, which the two tests below lean on
+TEST_CASE("a stretched two body orbit returns to its start after one period") {
+  Bodies b = two_body_orbit(0.75f, 0.25f, 1.0f, 0.7f);
+  const Bodies start = b;
+
+  const int steps = 2000;
+  compute_accel(b, 0.0f);
+  run(b, steps, float(stretched_period / steps), 0.0f);
+
+  for (int i = 0; i < 2; ++i) {
+    CHECK(std::abs(b.x[i] - start.x[i]) < 1e-3f);
+    CHECK(std::abs(b.y[i] - start.y[i]) < 1e-3f);
+  }
+}
 
 // leapfrog's energy error wobbles but does not pile up, so a 10 times longer run is no worse
 TEST_CASE("energy drift stays bounded over a long run") {

@@ -22,9 +22,10 @@ void compute_accel(Bodies& b, float eps) {
       // m / r^2 for the strength and one more 1 / r to turn the arrow into a direction
       // the softening length is added in so a close pass cannot blow the force up
       const float r2 = dx * dx + dy * dy + dz * dz + eps2;
-      // zero distance means no pull, which covers a body paired with itself
-      // and two bodies sitting on the same point with softening off
-      const float pull = r2 > 0.0f ? G * b.m[j] / (r2 * std::sqrt(r2)) : 0.0f;
+      // a zero here means no pull, which covers a body paired with itself, two bodies
+      // on the same point with softening off, and a gap too tiny for a float to cube
+      const float r3 = r2 * std::sqrt(r2);
+      const float pull = r3 > 0.0f ? G * b.m[j] / r3 : 0.0f;
 
       sx += pull * dx;
       sy += pull * dy;

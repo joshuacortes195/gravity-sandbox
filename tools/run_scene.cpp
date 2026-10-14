@@ -13,13 +13,23 @@
 // usage: run_scene [speed_scale] [steps_per_orbit] [orbits]
 int main(int argc, char** argv) {
   // defaults are a circular orbit, 1 is circular and lower is more stretched
-  const double speed_scale = argc > 1 ? std::atof(argv[1]) : 1.0;
-  const int per_orbit = argc > 2 ? std::atoi(argv[2]) : 1000;
-  const int orbits = argc > 3 ? std::atoi(argv[3]) : 100;
+  double speed_scale = 1.0;
+  long long per_orbit = 1000, orbits = 100;
 
-  // bad input gets a usage line, a speed of sqrt(2) or more would fly apart and never orbit
-  if (speed_scale <= 0.0 || speed_scale >= 1.4 || per_orbit <= 0 || orbits <= 0) {
+  // reads the arguments, anything left over after the number (like 1e3 or 10x) counts as bad
+  bool ok = true;
+  char* end = nullptr;
+  if (argc > 1) { speed_scale = std::strtod(argv[1], &end); ok = ok && *end == '\0'; }
+  if (argc > 2) { per_orbit = std::strtoll(argv[2], &end, 10); ok = ok && *end == '\0'; }
+  if (argc > 3) { orbits = std::strtoll(argv[3], &end, 10); ok = ok && *end == '\0'; }
+
+  // a speed of sqrt(2) or more would fly apart and never orbit, and the step cap keeps a typo from running for hours
+  const long long max_steps = 100000000;
+  ok = ok && argc <= 4 && speed_scale > 0.0 && speed_scale < 1.4;
+  ok = ok && per_orbit > 0 && orbits > 0 && per_orbit <= max_steps && orbits <= max_steps / per_orbit;
+  if (!ok) {
     std::fprintf(stderr, "usage: run_scene [speed_scale 0 to 1.4] [steps_per_orbit] [orbits]\n");
+    std::fprintf(stderr, "whole numbers for the last two, at most %lld steps in total\n", max_steps);
     return 1;
   }
 
@@ -33,7 +43,7 @@ int main(int argc, char** argv) {
   const double a = separation / (2.0 - speed_scale * speed_scale);
   const double period = 2.0 * pi * std::sqrt(a * a * a / (m1 + m2));
   const float dt = float(period / per_orbit);
-  const long steps = long(per_orbit) * orbits;
+  const long long steps = per_orbit * orbits;
 
   // starting totals to compare against
   compute_accel(b, eps);
@@ -43,7 +53,7 @@ int main(int argc, char** argv) {
 
   // the run itself, keeping track of the worst energy error along the way
   double worst = 0.0;
-  for (long s = 0; s < steps; ++s) {
+  for (long long s = 0; s < steps; ++s) {
     step(b, dt, eps);
     worst = std::max(worst, std::abs((total_energy(b, eps) - e0) / e0));
   }
@@ -57,8 +67,8 @@ int main(int argc, char** argv) {
   std::printf("scene              two body, m = %g and %g, separation %g, speed scale %g\n", m1, m2, separation, speed_scale);
   std::printf("softening          %g\n", eps);
   std::printf("period             %.6f\n", period);
-  std::printf("timestep           %.6g (%d steps per orbit)\n", dt, per_orbit);
-  std::printf("steps              %ld (%d orbits)\n", steps, orbits);
+  std::printf("timestep           %.6g (%lld steps per orbit)\n", dt, per_orbit);
+  std::printf("steps              %lld (%lld orbits)\n", steps, orbits);
   std::printf("starting energy    %.9f\n", e0);
   std::printf("final energy drift %.3e\n", (e1 - e0) / e0);
   std::printf("worst energy drift %.3e\n", worst);

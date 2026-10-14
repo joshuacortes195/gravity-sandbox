@@ -50,7 +50,7 @@ Each phase ends with tests passing, a commit and a push.
 - Repo, CMake, doctest runner, folder layout
 - Done when: `ctest` runs one passing test from a clean checkout
 
-### Phase 1: brute force core
+### Phase 1: brute force core (done)
 
 Written test first.
 

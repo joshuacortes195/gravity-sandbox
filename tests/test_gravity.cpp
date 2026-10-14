@@ -5,22 +5,22 @@
 #include "bodies.h"
 #include "gravity.h"
 
-// mass 2 at the origin and mass 3 at distance 5, worked out by hand
+// mass 2 at the origin and mass 3 at (2, 3, 6), which is distance 7, worked out by hand
 TEST_CASE("force between two bodies matches the formula") {
   Bodies b;
   b.add(0, 0, 0, 0, 0, 0, 2);
-  b.add(3, 4, 0, 0, 0, 0, 3);
+  b.add(2, 3, 6, 0, 0, 0, 3);
   compute_accel(b, 0.0f);
 
-  // body 0 is pulled toward body 1 with 3 / 25
-  CHECK(b.ax[0] == doctest::Approx(0.072));
-  CHECK(b.ay[0] == doctest::Approx(0.096));
-  CHECK(b.az[0] == doctest::Approx(0.0));
+  // body 0 is pulled toward body 1 with 3 * (2, 3, 6) / 7^3
+  CHECK(b.ax[0] == doctest::Approx(6.0 / 343.0));
+  CHECK(b.ay[0] == doctest::Approx(9.0 / 343.0));
+  CHECK(b.az[0] == doctest::Approx(18.0 / 343.0));
 
-  // body 1 is pulled back toward body 0 with 2 / 25
-  CHECK(b.ax[1] == doctest::Approx(-0.048));
-  CHECK(b.ay[1] == doctest::Approx(-0.064));
-  CHECK(b.az[1] == doctest::Approx(0.0));
+  // body 1 is pulled back toward body 0 with 2 * (2, 3, 6) / 7^3
+  CHECK(b.ax[1] == doctest::Approx(-4.0 / 343.0));
+  CHECK(b.ay[1] == doctest::Approx(-6.0 / 343.0));
+  CHECK(b.az[1] == doctest::Approx(-12.0 / 343.0));
 }
 
 // separation 3 and softening 4 make the softened distance exactly 5
@@ -51,6 +51,17 @@ TEST_CASE("two bodies at the same point feel no force and no NaN") {
       CHECK(b.az[i] == 0.0f);
     }
   }
+}
+
+// a gap too small for a 32 bit float to cube must not turn into an infinite force
+TEST_CASE("two bodies a hair apart still get a finite force") {
+  Bodies b;
+  b.add(0, 0, 0, 0, 0, 0, 2);
+  b.add(1e-16f, 0, 0, 0, 0, 0, 3);
+  compute_accel(b, 0.0f);
+
+  CHECK(std::isfinite(b.ax[0]));
+  CHECK(std::isfinite(b.ax[1]));
 }
 
 // newton's third law: every pull has an equal pull back, so mass * accel sums to zero

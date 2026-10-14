@@ -12,11 +12,17 @@ Each result records how it was measured:
 - softening length
 - the commit it was measured on
 
-There are no results yet. The first ones come from the energy drift CLI in phase 1 and the benchmark harness in phase 2.
+## Files
+
+| File | What it holds |
+| --- | --- |
+| [energy-drift.md](energy-drift.md) | Energy and momentum drift for the two-body orbit, and the timestep convergence check |
+
+Benchmarks come in phase 2.
 
 ## Machine
 
-All native numbers will come from one laptop:
+All native numbers come from one laptop:
 
 | | |
 | --- | --- |
