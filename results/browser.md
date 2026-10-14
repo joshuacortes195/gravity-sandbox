@@ -47,7 +47,7 @@ The screen refreshes at 60 Hz, so 60 fps is the ceiling. This shows the sim keep
 
 Same machine, browser and window as above, production build of the phase 4 web app. The step cap is now a 12 ms physics budget per frame instead of 8 steps. One reading per scene, taken about 10 seconds after picking it, at theta 0.7 and 1x speed, so these are single snapshots and not medians. Dt and softening per scene are in [presets.md](presets.md).
 
-Measured on the build just before commit `PHASE4_WEB`. The only changes made after measuring were the figure-eight's dot size, the drift readout waiting for a second energy sum, and the theta slider's lower end. None of them touches the physics.
+Measured on the build just before commit `c007607`. The only changes made after measuring were the figure-eight's dot size, the drift readout waiting for a second energy sum, and the theta slider's lower end. None of them touches the physics.
 
 | Scene | Bodies | fps | ms/step | steps/s | Energy drift |
 | --- | --- | --- | --- | --- | --- |
