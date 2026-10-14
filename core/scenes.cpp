@@ -61,3 +61,41 @@ Bodies clustered_ball(int n, unsigned seed) {
   }
   return b;
 }
+
+Bodies disk_galaxy(int n, float center_mass, float disk_mass, float radius, float eps, unsigned seed) {
+  std::mt19937 rng(seed);
+  const float inner = 0.1f * radius;
+  const float two_pi = 6.2831853f;
+
+  // the heavy center sits still at the origin
+  Bodies b;
+  b.add(0, 0, 0, 0, 0, 0, center_mass);
+
+  // stars spread evenly over the area of the ring, so there are more of them farther out
+  for (int i = 0; i < n; ++i) {
+    const float u = rng() / 4294967296.0f;
+    const float angle = two_pi * (rng() / 4294967296.0f);
+    const float r = std::sqrt(inner * inner + u * (radius * radius - inner * inner));
+
+    // mass pulling the star inward: the center plus the share of the disk inside its radius, which is u
+    // treated as if it all sat at the center, close enough for a light disk
+    const float inside = center_mass + u * disk_mass;
+
+    // circular speed under the softened pull, so stars near the center are not flung out on stretched orbits
+    const float speed = std::sqrt(G * inside * r * r / std::pow(r * r + eps * eps, 1.5f));
+
+    // velocity points sideways to the radius, counterclockwise seen from above
+    const float c = std::cos(angle), s = std::sin(angle);
+    b.add(r * c, r * s, 0, -speed * s, speed * c, 0, disk_mass / n);
+  }
+
+  // the center moves just enough the other way to cancel the stars' leftover momentum
+  double px = 0, py = 0;
+  for (int i = 1; i <= n; ++i) {
+    px += double(b.m[i]) * b.vx[i];
+    py += double(b.m[i]) * b.vy[i];
+  }
+  b.vx[0] = float(-px / center_mass);
+  b.vy[0] = float(-py / center_mass);
+  return b;
+}
