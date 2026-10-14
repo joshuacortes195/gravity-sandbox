@@ -72,19 +72,31 @@ void Octree::build(const Bodies& b) {
                            parent.mz + ((c & 4) ? quarter : -quarter),
                            0.5f * parent.size, -1, -1});
         }
+        // the cut cube forgets the body it held, its totals get added up from its children at the end
         nodes[node].child = first;
         nodes[node].body = -1;
+        nodes[node].mass = nodes[node].cx = nodes[node].cy = nodes[node].cz = 0.0f;
         Node& moved = nodes[first + octant(parent, b, old)];
         moved.body = old;
         add_mass(moved, b, old);
       }
 
-      // passing through a cube on the way down, so it counts this body's mass too
-      add_mass(nodes[node], b, i);
-
       // step into the child cube the body belongs in
       node = nodes[node].child + octant(nodes[node], b, i);
       ++depth;
+    }
+  }
+
+  // fills in every cut cube's totals from its 8 children, going backwards so the children are
+  // always finished first. adding cube by cube keeps far more digits than adding body by body
+  for (int k = int(nodes.size()) - 1; k >= 0; --k) {
+    if (nodes[k].child < 0) continue;
+    for (int c = 0; c < 8; ++c) {
+      const Node& kid = nodes[nodes[k].child + c];
+      nodes[k].mass += kid.mass;
+      nodes[k].cx += kid.cx;
+      nodes[k].cy += kid.cy;
+      nodes[k].cz += kid.cz;
     }
   }
 
@@ -125,8 +137,12 @@ void compute_accel_tree(Bodies& b, Octree& tree, float eps, float theta) {
     int count = 0;
     todo[count++] = 0;
 
+    // the cube on body i's own path down the tree that has not been opened yet, starting at the root
+    int mine = 0;
+
     while (count > 0) {
-      const Node& nd = nodes[todo[--count]];
+      const int k = todo[--count];
+      const Node& nd = nodes[k];
 
       // an empty cube pulls on nothing
       if (nd.mass == 0.0f) continue;
@@ -144,14 +160,17 @@ void compute_accel_tree(Bodies& b, Octree& tree, float eps, float theta) {
       const float dy = nd.cy - b.y[i];
       const float dz = nd.cz - b.z[i];
 
-      // a body standing inside a cube can never treat it as far away, that would count its own mass
-      const float half = 0.5f * nd.size;
-      const bool inside = std::abs(b.x[i] - nd.mx) <= half && std::abs(b.y[i] - nd.my) <= half &&
-                          std::abs(b.z[i] - nd.mz) <= half;
+      // a cube that holds body i can never be treated as far away, that would count its own mass
+      // it is always opened, and the child the body was sorted into becomes the next one to watch for
+      if (k == mine) {
+        mine = nd.child + octant(nd, b, i);
+        for (int c = 0; c < 8; ++c) todo[count++] = nd.child + c;
+        continue;
+      }
 
       // the opening rule: width / distance under theta means the cube is small and far enough
       // to count as one body, otherwise look inside it
-      if (!inside && nd.size * nd.size < theta2 * (dx * dx + dy * dy + dz * dz)) {
+      if (nd.size * nd.size < theta2 * (dx * dx + dy * dy + dz * dz)) {
         pull_from(dx, dy, dz, nd.mass);
       } else {
         for (int c = 0; c < 8; ++c) todo[count++] = nd.child + c;

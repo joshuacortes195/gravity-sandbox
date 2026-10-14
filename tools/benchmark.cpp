@@ -102,7 +102,7 @@ int main(int argc, char** argv) {
                commit.c_str(), __VERSION__);
   std::fprintf(json, "  \"build_flags\": \"%s\",\n  \"softening\": %g,\n  \"seed\": %u,\n", BENCH_FLAGS, eps, seed);
   std::fprintf(json, "  \"timing\": \"one force pass, single thread, fastest of at least 3 runs and 0.3 s\",\n");
-  std::fprintf(json, "  \"error\": \"|a_tree - a_brute| / |a_brute| per body\",\n  \"runs\": [\n");
+  std::fprintf(json, "  \"error\": \"|a_tree - a_brute| / |a_brute| per body, each body against its own acceleration\",\n  \"runs\": [\n");
   for (std::size_t i = 0; i < rows.size(); ++i) {
     const Row& r = rows[i];
     std::fprintf(json, "    {\"scene\": \"%s\", \"n\": %d, \"brute_ms\": %.4f, \"tree_build_ms\": %.4f, \"tree\": [",
@@ -123,6 +123,7 @@ int main(int argc, char** argv) {
   std::fprintf(md, "- Softening: %g, seed: %u, bodies at rest with equal mass in a ball of radius 1\n", eps, seed);
   std::fprintf(md, "- Time: one force pass on a single thread, the fastest of at least 3 runs and 0.3 seconds. Tree times include building the tree\n");
   std::fprintf(md, "- Error: |a_tree - a_brute| / |a_brute| for each body, then the mean and the worst body\n");
+  std::fprintf(md, "- The worst body is measured against its own acceleration. Where the pulls nearly cancel that is small, so the worst reads far higher than the mean\n");
 
   for (const char* scene : {"uniform", "clustered"}) {
     // time per force pass, with the speedup over brute force next to each tree time

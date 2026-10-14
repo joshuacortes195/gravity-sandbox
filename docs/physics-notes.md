@@ -129,11 +129,47 @@ Questions I should be able to answer:
 - Why is the energy check O(n^2)? Potential energy is a sum over every pair.
 - Energy looks fine, so is the sim exact? No. Energy can hold while a body's place along its orbit drifts.
 
+## Barnes-Hut and theta
+
+Brute force compares every body with every other body, so doubling N makes it four times slower. Barnes-Hut gets around that with one observation: a clump of stars that is far away pulls on me almost exactly like a single body with the clump's total mass, sitting at its center of mass. I do not need each star in it.
+
+To find clumps at every scale I build an octree. I put all the bodies in one cube. Any cube with more than one body in it gets cut into 8 smaller cubes, halved along x, y and z, and its bodies are sorted into them. This repeats until each cube holds one body or none. Every cube remembers the total mass inside it and the center of mass, which is the average position weighted by mass.
+
+To get the force on one body I start at the root cube and ask one question: is this cube small and far away? The test is
+
+    width of the cube / distance to its center of mass < theta
+
+If yes, the whole cube counts as one body. If no, I open it and ask the same thing of its 8 children. A leaf cube is just a body, so its pull is added directly with the same softened formula brute force uses.
+
+Theta is the accuracy dial. At theta = 0 no cube ever passes, every cube is opened down to single bodies, and the answer is brute force. A bigger theta accepts bigger and closer cubes, which is faster and less accurate. Around 0.5 is the usual choice.
+
+Why it is O(n log n): the cubes a body has to open are the ones near it. Far away, one cube stands in for thousands of bodies. The tree is about log n levels deep and a body does a roughly fixed amount of work per level, so n bodies cost about n log n.
+
+Details in my version:
+
+- The tree is rebuilt from scratch every step. Bodies move, and building is cheap next to the force pass.
+- A cut is stopped after 24 levels. Two bodies on the exact same point can never be separated by cutting, so without a limit the tree would split forever. Bodies that reach the limit share a leaf as a short chain.
+- A body never uses a cube it is sitting inside as one far away body. The theta test measures distance to the center of mass, and with a big theta that point can be far enough away to pass even though the cube contains the body itself. Then the body's own mass would pull on it. I found this with two bodies of mass 1 and 3 at opposite corners of a cube: at theta = 1 the light one got a pull of 1.37 per axis where the right answer is 0.577. My first fix compared the body's position with the cube's edges. That still failed for bodies packed close together far from the origin, because the edges of very small cubes round off in 32-bit and a body can land a hair outside the cube it was sorted into. The walk now follows the body's own path down the tree, using the same sorting rule the build used, and always opens the cubes on that path.
+- Each cube's mass is added up from its 8 children, not body by body. Adding 30,000 small masses one after another in 32-bit gave a root mass of 0.99968 where the true total is 1. Summing cube by cube gives 1.
+- Tree forces break Newton's third law slightly. Body A might see B's cube as one lump while B sees A exactly, so the two pulls are not equal and opposite. Momentum and energy are no longer conserved to rounding the way they are with brute force.
+
+Code: `core/octree.h` and `core/octree.cpp`. `Octree::build` makes the tree and `compute_accel_tree` walks it. The tests in `tests/test_octree.cpp` compare it against brute force.
+
+BENCH_NUMBERS
+
+Questions I should be able to answer:
+
+- Why is the error small? Treating a clump as a point ignores its shape. That mistake shrinks like (size / distance)^2, and theta caps size / distance.
+- How do I know the tree is right? At theta = 0 it matches brute force to rounding, and the error against brute force shrinks every time theta shrinks. Both are tests.
+- Why rebuild every step instead of updating the tree? Simpler, and the build is a small part of the time.
+- When does brute force win? At small N, where the tree's overhead costs more than it saves.
+- Why does the worst body have a much bigger error than the average? The error is measured against each body's own acceleration. A body near the middle of a ball is pulled almost equally from every side, so its net acceleration is small and a normal sized mistake looks large next to it.
+- Why an array of nodes instead of one array per field like the bodies? The walk reads all of a node's fields together, so keeping them side by side is the cache friendly layout here.
+
 ## Still to come
 
 I will add a section for each of these as I build it:
 
-- Barnes-Hut and theta (phase 2)
 - Fixed timestep in the browser (phase 3)
 - The figure-eight orbit (phase 4)
 - SIMD and threads (phase 5)

@@ -159,6 +159,13 @@ TEST_CASE("the tree's force error shrinks as theta shrinks") {
       MESSAGE(std::string(clumpy ? "clustered" : "uniform") << " theta " << theta << ": mean error " << e.mean << ", worst " << e.worst);
       CHECK(e.mean < last);
       last = e.mean;
+
+      // and the size of the error has to be about right, a wrong opening rule or a wrong
+      // center of mass still shrinks with theta but lands outside this window
+      if (theta == 0.5f) {
+        CHECK(e.mean > 3e-3);
+        CHECK(e.mean < 1.2e-2);
+      }
     }
   }
 }
@@ -223,4 +230,27 @@ TEST_CASE("energy stays close when a ball of bodies falls inward under tree forc
   }
   MESSAGE("worst energy drift with tree forces at theta 0.5: " << worst);
   CHECK(worst < 2e-2);
+}
+
+// adding 30000 small masses one after another in 32 bit loses digits, summing cube by cube does not
+TEST_CASE("the root mass stays exact with a lot of bodies") {
+  const Bodies b = uniform_ball(30000, 1);
+  Octree tree;
+  tree.build(b);
+  CHECK(tree.nodes[0].mass == doctest::Approx(1.0).epsilon(1e-5));
+}
+
+// five bodies a hair apart and far from the origin, where the middles of the small cubes round off
+// a check based on cube edges put body positions just outside their own cube here
+TEST_CASE("a body does not count itself when cube edges round off") {
+  Bodies b;
+  b.add(100.000031f, 100.000031f, 100.000122f, 0, 0, 0, 1);
+  b.add(100.000099f, 100.000092f, 100.000061f, 0, 0, 0, 1);
+  b.add(100.000031f, 100.000031f, 100.000114f, 0, 0, 0, 1);
+  b.add(100.000023f, 100.000145f, 100.000008f, 0, 0, 0, 1);
+  b.add(100.000023f, 100.000031f, 100.000053f, 0, 0, 0, 1);
+
+  const TreeError e = tree_error(b, 0.0f, 0.7f);
+  MESSAGE("worst error with rounded cube edges: " << e.worst);
+  CHECK(e.worst < 0.3);
 }
