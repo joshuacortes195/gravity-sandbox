@@ -7,8 +7,9 @@ import { PRESETS } from './presets';
 // times every build of the physics on the same scenes, so the speedups come from one page in one browser
 // open /bench.html, it prints a table and leaves the raw numbers on window.bench
 
-// how many steps run before timing starts, and how the timed steps are grouped
-const WARMUP_STEPS = 10;
+// how long steps run before timing starts, and how the timed steps are grouped
+// safari first runs wasm through a quick compile and swaps in the fast one later, so the warmup goes by time
+const WARMUP_MS = 1000;
 const BATCHES = 15;
 const STEPS_PER_BATCH = 5;
 const THETA = 0.7;
@@ -48,7 +49,7 @@ function time(sim: Sim, c: (typeof CASES)[number]) {
   sim._load_scene(c.which, c.n, 1, p.eps, THETA);
   const run = (steps: number) =>
     c.brute ? sim._advance_brute(steps, p.dt, p.eps) : sim._advance(steps, p.dt, p.eps, THETA);
-  run(WARMUP_STEPS);
+  for (const t0 = performance.now(); performance.now() - t0 < WARMUP_MS; ) run(1);
   const perStep: number[] = [];
   for (let b = 0; b < BATCHES; b++) {
     const t0 = performance.now();
@@ -67,7 +68,7 @@ function show(status: string) {
   out.textContent = [
     `${navigator.userAgent}`,
     `cross-origin isolated: ${crossOriginIsolated}, logical cores: ${navigator.hardwareConcurrency}`,
-    `theta ${THETA}, median of ${BATCHES} batches of ${STEPS_PER_BATCH} steps after ${WARMUP_STEPS} warmup steps`,
+    `theta ${THETA}, median of ${BATCHES} batches of ${STEPS_PER_BATCH} steps after ${WARMUP_MS} ms of warmup`,
     '',
     ...lines,
     '',
