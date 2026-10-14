@@ -12,12 +12,12 @@ Barnes-Hut against brute force, one force pass on one thread, theta 0.5, bodies 
 
 | Bodies | Brute force | Barnes-Hut | Speedup | Mean force error |
 | --- | --- | --- | --- | --- |
-| 1000 | 3.367 ms | 3.396 ms | 0.99x | 0.65% |
-| 3000 | 31.461 ms | 16.376 ms | 1.92x | 0.68% |
-| 10,000 | 369.842 ms | 78.959 ms | 4.68x | 0.61% |
-| 30,000 | 3351.005 ms | 313.357 ms | 10.69x | 0.59% |
+| 1000 | 1.499 ms | 3.704 ms | 0.40x | 0.65% |
+| 3000 | 14.093 ms | 17.104 ms | 0.82x | 0.68% |
+| 10,000 | 164.945 ms | 76.207 ms | 2.16x | 0.61% |
+| 30,000 | 1527.296 ms | 311.048 ms | 4.91x | 0.59% |
 
-The two methods tie at about 1000 bodies. Other values of theta, a clustered scene and the worst-body errors are in [results/benchmarks.md](results/benchmarks.md).
+The tree pulls ahead somewhere between 3000 and 10,000 bodies. Brute force here is the SIMD version, which does 4 bodies per instruction. Other values of theta, a clustered scene and the worst-body errors are in [results/benchmarks.md](results/benchmarks.md).
 
 In the browser (Chrome 155 on the same Intel Mac), a disk of 2000 stars runs at 60 fps, the screen's limit, with 120 physics steps a second at a median 3.42 ms each, using Barnes-Hut at theta 0.7. Details in [results/browser.md](results/browser.md).
 

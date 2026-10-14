@@ -159,16 +159,18 @@ What I measured, on one thread with softening 0.01 (full tables in `results/benc
 
 | N | brute force | tree at theta 0.5 | speedup | mean force error |
 | --- | --- | --- | --- | --- |
-| 1000 | 3.367 ms | 3.396 ms | 0.99x | 0.65% |
-| 3000 | 31.461 ms | 16.376 ms | 1.92x | 0.68% |
-| 10,000 | 369.842 ms | 78.959 ms | 4.68x | 0.61% |
-| 30,000 | 3351.005 ms | 313.357 ms | 10.69x | 0.59% |
+| 1000 | 1.499 ms | 3.704 ms | 0.40x | 0.65% |
+| 3000 | 14.093 ms | 17.104 ms | 0.82x | 0.68% |
+| 10,000 | 164.945 ms | 76.207 ms | 2.16x | 0.61% |
+| 30,000 | 1527.296 ms | 311.048 ms | 4.91x | 0.59% |
 
-That is the evenly spread scene. The tree and brute force tie at about 1000 bodies there. On the clumpy scene the tree is already ahead at 300 bodies (1.19x). Building the tree is a small part of it: 2.6 ms of the 313 ms at 30,000 bodies.
+That is the evenly spread scene. At theta 0.5 the tree first wins somewhere between 3000 and 10,000 bodies, and the clumpy scene is the same (0.95x at 3000, 2.08x at 10,000). Building the tree is a small part of it: 2.7 ms of the 311 ms at 30,000 bodies.
 
-Going from 10,000 to 30,000 bodies makes brute force 9.1 times slower and the tree 4.0 times slower.
+These numbers changed in phase 5. My first run said the two tie at about 1000 bodies and the tree is 10.69x faster at 30,000. Then I found the compiler had never turned the brute force loop into SIMD code (see "SIMD and threads"). Once it did, brute force got about 2.2 times faster natively and the tree barely moved, so the tree's lead shrank. A faster baseline makes the clever method look less impressive, and the honest comparison is against the fastest brute force I can write.
 
-Theta trades speed for accuracy. At 30,000 bodies in the even scene, theta 0.3 is 3.0x faster than brute force with 0.13% mean error, 0.5 is 10.7x with 0.59%, 0.7 is 24.8x with 1.3%, and 1.0 is 62.5x with 3.6%.
+Going from 10,000 to 30,000 bodies makes brute force 9.3 times slower and the tree 4.1 times slower.
+
+Theta trades speed for accuracy. At 30,000 bodies in the even scene, theta 0.3 is 1.39x faster than brute force with 0.13% mean error, 0.5 is 4.91x with 0.59%, 0.7 is 11.65x with 1.3%, and 1.0 is 27.23x with 3.6%.
 
 The worst single body is much further off than the mean, up to 111% at theta 1 and 19% at theta 0.5 in these runs.
 
@@ -266,8 +268,30 @@ Spawning a body adds energy that was never in the system, so the drift would jum
 
 Code: `potential_rows` in `core/diagnostics.cpp`, `energy_begin` and `energy_work` in `wasm/bindings.cpp`, the readout in `web/src/main.ts`.
 
-## Still to come
+## SIMD and threads
 
-I will add a section for each of these as I build it:
+These two speedups have nothing to do with physics. They make the same math run faster, and the answer has to stay the same.
 
-- SIMD and threads (phase 5)
+SIMD means single instruction, multiple data. One CPU instruction works on 4 floats side by side instead of one. I do not write SIMD code by hand. Building with `-msimd128` lets the compiler rewrite plain loops so each pass handles 4 bodies. It can only do that when the same math runs on neighboring entries of an array with no branches in the way. Brute force is exactly that: one flat loop over every other body j, reading x[j], y[j], z[j] and m[j] straight down the arrays. This is where storing bodies as structure of arrays pays off. The tree walk is different. It jumps around the tree, and every cube is a yes or no on the opening rule, so there is far less for the compiler to line up.
+
+Threads are separate workers running at the same time on different cores. Each step has two parts. The tree build stays on one thread. The walk is where the time goes, and it splits cleanly: once the tree is built, every body's walk only reads the tree and only writes its own ax[i], ay[i], az[i]. No two threads write the same thing, so there are no locks. Threads grab blocks of 64 bodies from a shared counter until none are left. A thread that drew cheap bodies far from everything just takes more blocks. Each body still adds up its pulls in the same order as on one thread, so the answer matches one thread bit for bit, and there is a test for that.
+
+The browser makes threads awkward in two ways. First, threads in WASM share one memory, a `SharedArrayBuffer`, and browsers only allow that on a page that is cross-origin isolated. That needs two headers on every response, COOP and COEP, which `vite.config.ts` sends locally and `netlify.toml` sends on the live site. If a page is not isolated, it gets the single thread SIMD build instead. Second, a WASM thread is a web worker, and creating one needs the page's main thread to come back to the browser first. My physics runs on the main thread inside a frame, so it cannot wait for a worker to start. The fix is to start every worker once while the page loads, and keep the helper threads asleep between steps. While the helpers work, the main thread does its share and then spins until they finish, because the main thread is not allowed to sleep.
+
+My first measurement showed SIMD doing nothing, even for brute force (18.61 ms against 18.52 ms per step). The compiler can explain itself: `-Rpass-missed=loop-vectorize` said "cannot prove it is safe to reorder floating-point operations". The loop adds every pull into one running total. Doing 4 bodies at once means 4 running totals added together at the end, which is a different order of adds. Float addition is not exactly associative, (a + b) + c can differ from a + (b + c) in the last bit, so the compiler will not reorder on its own. `#pragma clang loop vectorize(enable)` on that one loop gives it permission there and nowhere else. `-ffast-math` would also work, but it loosens the float rules for the whole program, including my energy sums. After the pragma, brute force ran 2.44x faster in the browser and about 2.2x faster natively.
+
+What I measured in Chrome on my laptop (full table in `results/speedups.md`):
+
+- SIMD: brute force at 2001 bodies went from 18.71 to 7.66 ms per step (2.44x). The tree scenes did not change (0.98x to 1.03x)
+- Threads: the 10,000 star disk went from 24.55 ms on one thread to 12.57 ms on 2 (1.95x) and 7.54 ms on 4 (3.25x). The smaller scenes gain less, 2.09x to 2.71x on 4 threads, because the tree build stays on one thread and it is a bigger share of a small step. That is Amdahl's law: the part you did not split sets the limit
+
+Questions I should be able to answer:
+
+- Why does the threaded answer match one thread exactly? Each body's pulls are still added in the same order by one thread. Only which thread handles which body changes
+- Why not 8x on 8 logical cores? There are 4 physical cores, the other 4 are hyperthreads sharing them, Chrome only reported 4, and the tree build is serial
+- Why did SIMD help brute force and not the tree? Brute force is a straight loop over arrays. The tree walk is a chain of branches and jumps
+- Why does a faster brute force change the Barnes-Hut result? The tree's speedup is measured against brute force. A better baseline means a smaller, more honest speedup
+
+There is one build per flag set: plain (the baseline I measure against), SIMD, and SIMD plus threads. Each one needs its own copy of the core, because with threads every file has to be built with `-pthread`.
+
+Code: `core/threads.cpp`, the walk in `compute_accel_tree` in `core/octree.cpp`, the three builds in `CMakeLists.txt`, the build picked in `web/src/main.ts`, the benchmark page in `web/src/bench.ts`.

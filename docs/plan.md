@@ -85,7 +85,7 @@ Written test first.
 - A native benchmark harness timing both methods across several N
 - Writes `results/benchmarks.json` and a markdown table
 - Done when: force error against brute force is measured for each theta, and the table shows where Barnes-Hut starts to win
-- Result: at theta 0.5 the two tie at about 1000 bodies in an evenly spread scene, and the tree is 10.69x faster at 30,000 with 0.59% mean force error. Tables in `results/benchmarks.md`
+- Result: at theta 0.5 the two tied at about 1000 bodies in an evenly spread scene, and the tree was 10.69x faster at 30,000 with 0.59% mean force error. In phase 5 brute force got SIMD and about 2.2x faster, so now the tree first wins between 3000 and 10,000 bodies and is 4.91x faster at 30,000. Tables in `results/benchmarks.md`
 - Added while building it: a body never treats a cube on its own path down the tree as one far away body, and each cube's mass is summed from its children so the totals stay exact in 32-bit
 
 ### Phase 3: browser (done)
