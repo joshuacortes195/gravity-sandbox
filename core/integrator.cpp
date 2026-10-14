@@ -11,18 +11,29 @@ static void kick(Bodies& b, float t) {
   }
 }
 
-void step(Bodies& b, float dt, float eps) {
-  // first half kick, using the forces left over from the last step
-  kick(b, 0.5f * dt);
-
-  // drift: every body moves a full step at its new velocity
+// drift: every body moves a full step at its current velocity
+static void drift(Bodies& b, float dt) {
   for (std::size_t i = 0; i < b.size(); ++i) {
     b.x[i] += b.vx[i] * dt;
     b.y[i] += b.vy[i] * dt;
     b.z[i] += b.vz[i] * dt;
   }
+}
+
+void step(Bodies& b, float dt, float eps) {
+  // first half kick, using the forces left over from the last step
+  kick(b, 0.5f * dt);
+  drift(b, dt);
 
   // forces at the new positions, then the second half kick
   compute_accel(b, eps);
+  kick(b, 0.5f * dt);
+}
+
+void step(Bodies& b, Octree& tree, float dt, float eps, float theta) {
+  // same kick drift kick, with the tree doing the force pass
+  kick(b, 0.5f * dt);
+  drift(b, dt);
+  compute_accel_tree(b, tree, eps, theta);
   kick(b, 0.5f * dt);
 }
