@@ -19,7 +19,7 @@ target_compile_options(core PRIVATE -Wall -Wextra)
 # native test runner, skipped when building for the browser
 if(NOT EMSCRIPTEN)
   enable_testing()
-  add_executable(tests tests/test_main.cpp tests/test_gravity.cpp tests/test_diagnostics.cpp tests/test_integrator.cpp tests/test_octree.cpp tests/test_scenes.cpp)
+  add_executable(tests tests/test_main.cpp tests/test_gravity.cpp tests/test_diagnostics.cpp tests/test_integrator.cpp tests/test_octree.cpp tests/test_scenes.cpp tests/test_presets.cpp)
   target_include_directories(tests SYSTEM PRIVATE third_party/doctest)
   target_link_libraries(tests PRIVATE core)
   target_compile_options(tests PRIVATE -Wall -Wextra)

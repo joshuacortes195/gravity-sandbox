@@ -4,13 +4,15 @@
 
 #include "units.h"
 
-double potential_energy(const Bodies& b, float eps) {
+double potential_energy(const Bodies& b, float eps) { return potential_rows(b, eps, 0, b.size()); }
+
+double potential_rows(const Bodies& b, float eps, std::size_t begin, std::size_t end) {
   const std::size_t n = b.size();
   const double eps2 = double(eps) * eps;
   double u = 0.0;
 
-  // every pair counted once
-  for (std::size_t i = 0; i < n; ++i) {
+  // every pair counted once, by the body that comes first
+  for (std::size_t i = begin; i < end; ++i) {
     for (std::size_t j = i + 1; j < n; ++j) {
       const double dx = double(b.x[j]) - b.x[i];
       const double dy = double(b.y[j]) - b.y[i];
