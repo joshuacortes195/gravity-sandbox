@@ -104,7 +104,7 @@ Written test first.
 - Settled: the WASM memory is a fixed 64 MB that never grows, and the page grabs new views of x, y and z after anything that changes the body count, instead of reserving a fixed capacity. The compiled `sim.js` and `sim.wasm` are committed, so the web app builds without emsdk
 - Added while building it: a disk galaxy scene, needed early because a ball at rest just collapses. A cold disk with a tenth of the center's mass broke into clumps within one turn. That is real physics (the Toomre instability), checked with brute force and a smaller timestep, so the browser disk is light, 0.005 of the center. Numbers in `results/disk-stability.md`
 
-### Phase 4: scenes and controls
+### Phase 4: scenes and controls (done)
 
 - Presets: mini solar system, figure-eight three-body orbit, galaxy collision, black hole against a star cluster
 - React control panel: pause, speed, theta and N sliders
@@ -113,6 +113,9 @@ Written test first.
 - Live energy drift readout. Exact potential energy is O(n^2), so it is computed every so often and not every frame. Drift is shown relative to the starting energy, which needs care for scenes whose total energy is near zero
 - Test: the figure-eight orbit returns close to its start after one period
 - Done when: all four presets run and each has its N, timestep and softening written down
+- Result: the four presets plus the single disk from phase 3. Settings and energy drift for each are in `results/presets.md`. The worst drift is 1.4e-03, for the black hole and cluster, and that comes from the tree (it drops to 1e-06 at theta 0)
+- Settled: the energy sum runs a few rows per frame on a frozen copy of the bodies. The step cap became a 12 ms time budget per frame, since a fixed step count does not fit a speed slider. A spawned body starts on a circular orbit around everything
+- Found while building it: the galaxy collision needs softening 0.05, not 0.01, or stars flung through the other galaxy's center wreck the energy (9% jump). The solar system's Jupiter had to move out to 3.0, because at 2.2 it pulled its neighbor 1.4% off its circle
 
 ### Phase 5: performance
 

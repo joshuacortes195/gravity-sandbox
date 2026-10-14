@@ -21,6 +21,7 @@ Each result records how it was measured:
 | [benchmarks.json](benchmarks.json) | The same benchmark numbers as data |
 | [disk-stability.md](disk-stability.md) | How long a disk galaxy stays a disk at different disk masses, and why the browser uses 0.005 |
 | [browser.md](browser.md) | Frame rate and time per physics step in the browser at 2000 bodies |
+| [presets.md](presets.md) | Timestep, softening and energy drift for each browser scene, and why the galaxy collision needs more softening |
 
 Both benchmark files are written by `tools/benchmark.cpp`. To measure again:
 

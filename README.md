@@ -2,7 +2,7 @@
 
 A gravity N-body simulation that runs in the browser. The physics is written in C++ and compiled to WebAssembly, and three.js draws the bodies.
 
-This is a work in progress. The physics core has brute force gravity with softening, a Barnes-Hut octree for large scenes, a leapfrog integrator, and energy and momentum checks, with 36 tests. It now runs in the browser too, as a disk of 2000 stars orbiting a heavy center that you can spin around with the mouse. There is no live demo yet.
+This is a work in progress. The physics core has brute force gravity with softening, a Barnes-Hut octree for large scenes, a leapfrog integrator, and energy and momentum checks, with 43 tests. In the browser you can pick one of five scenes, change the speed, the tree accuracy and the number of stars, click to drop in a new body, and watch a live energy drift readout. There is no live demo yet.
 
 ## Numbers so far
 
@@ -21,11 +21,23 @@ The two methods tie at about 1000 bodies. Other values of theta, a clustered sce
 
 In the browser (Chrome 155 on the same Intel Mac), a disk of 2000 stars runs at 60 fps, the screen's limit, with 120 physics steps a second at a median 3.42 ms each, using Barnes-Hut at theta 0.7. Details in [results/browser.md](results/browser.md).
 
-## What it will do
+Each scene's timestep and softening were picked by running it natively and watching the energy. Over the runs in [results/presets.md](results/presets.md) the worst energy drift was:
 
-- Simulate thousands of stars, planets and black holes pulling on each other
-- Ship with four scenes: a mini solar system, the figure-eight three-body orbit, a galaxy collision, and a black hole passing through a star cluster
-- Show a live energy drift readout so you can see how accurate the simulation is while it runs
+| Scene | Bodies | Worst energy drift |
+| --- | --- | --- |
+| Solar system | 6 | 6.7e-06 over two orbits of the outer planet |
+| Figure-eight | 3 | 5.3e-06 over ten periods |
+| Galaxy collision | 2002 | 6.7e-04 through the crash, to t = 15 |
+| Black hole vs cluster | 1001 | 1.4e-03 through the first close pass, to t = 10 |
+| Disk galaxy | 2001 | 1.5e-05 to t = 10 |
+
+## What it does
+
+- Simulates thousands of stars, planets and black holes pulling on each other
+- Comes with five scenes: a mini solar system, the figure-eight three-body orbit, a galaxy collision, a black hole tearing apart a star cluster, and a single disk galaxy
+- Has a control panel for pause, speed, tree accuracy (theta) and the number of stars
+- Lets you click anywhere to drop in a new body on a circular orbit
+- Shows a live energy drift readout so you can see how accurate the simulation is while it runs
 
 The full plan is in [docs/plan.md](docs/plan.md). My notes on the physics are in [docs/physics-notes.md](docs/physics-notes.md).
 
@@ -44,6 +56,13 @@ To run the two-body orbit and print its energy drift:
 ```bash
 # speed scale (1 is circular), steps per orbit, orbits
 ./build/run_scene 1 1000 100
+```
+
+To run one of the browser's scenes natively and print its energy drift:
+
+```bash
+# scene (solar, eight, collision, cluster, disk), stars, dt, softening, theta, time, checkpoints
+./build/preset_check collision 1000 0.002 0.05 0.7 15 6
 ```
 
 To time brute force against Barnes-Hut (takes about a minute and rewrites the two benchmark files):
@@ -75,7 +94,7 @@ npm run dev
 | --- | --- |
 | `core/` | The C++ physics core |
 | `tests/` | Native tests, written with doctest |
-| `tools/` | `run_scene`, a small CLI that runs a scene and prints energy drift, and `benchmark`, which times brute force against Barnes-Hut |
+| `tools/` | `run_scene`, a small CLI that runs the two-body orbit and prints energy drift, `benchmark`, which times brute force against Barnes-Hut, `disk_check` for disk stability and `preset_check` for each browser scene's energy drift |
 | `wasm/` | The functions the web page calls into the C++ core |
 | `web/` | The Vite + TypeScript app that draws the sim with three.js |
 | `third_party/` | The doctest header |

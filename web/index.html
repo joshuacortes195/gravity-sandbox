@@ -8,16 +8,26 @@
       /* full screen black page for the sim */
       html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
       canvas { display: block; }
-      /* styling for the fps readout in the corner */
-      #stats {
-        position: fixed; top: 8px; left: 8px;
+      /* styling for the control panel in the top left corner */
+      .panel {
+        position: fixed; top: 8px; left: 8px; width: 220px; max-width: calc(100vw - 32px);
+        padding: 10px; border-radius: 8px; background: rgba(10, 14, 22, 0.8);
         font: 12px/1.4 ui-monospace, Menlo, monospace; color: #9ab;
-        white-space: pre; pointer-events: none;
+        display: flex; flex-direction: column; gap: 8px;
       }
+      /* styling for labels with a control under them */
+      .panel label { display: flex; flex-direction: column; gap: 2px; }
+      .panel select, .panel button { font: inherit; color: #cde; background: #1a2230; border: 1px solid #2c3a4f; border-radius: 4px; padding: 3px 6px; }
+      .panel .buttons { display: flex; gap: 6px; }
+      .panel .buttons button { flex: 1; cursor: pointer; }
+      /* styling for the live numbers, name on the left and value on the right */
+      .readouts { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; margin: 0; }
+      .readouts dd { margin: 0; text-align: right; color: #cde; }
+      .hint { margin: 0; color: #678; }
     </style>
   </head>
   <body>
-    <div id="stats"></div>
+    <div id="panel"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

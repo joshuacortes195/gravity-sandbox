@@ -208,15 +208,66 @@ A WASM program gets one big flat block of bytes as its memory, and JavaScript se
 
 Two things can kill a view. If the WASM memory grows, the old buffer is thrown away and every view on it goes dead. If a `std::vector` reallocates, its data moves to a new address. So the memory size is fixed at 64 MB and never grows, and the page grabs fresh views after anything that changes the body count.
 
-The physics runs on a fixed timestep. The browser draws a frame roughly every 16 ms, but never exactly, and leapfrog only keeps energy bounded when dt never changes. So each frame I add the real time that passed to a backlog, and run one physics step for every 1/120 of a second in it. Drawing just shows whatever the state is. There is a cap of 8 steps per frame. Without it, one slow frame would need extra steps, which makes the next frame slower, which needs even more steps. With the cap the extra time is dropped and the sim slows down for a moment instead of locking up.
+The physics runs on a fixed timestep. The browser draws a frame roughly every 16 ms, but never exactly, and leapfrog only keeps energy bounded when dt never changes. So each frame I add the real time that passed to a backlog, and run one physics step for every 1/120 of a second in it. Drawing just shows whatever the state is. There is a cap on how much physics one frame can do. Without it, one slow frame would need extra steps, which makes the next frame slower, which needs even more steps. In phase 3 the cap was 8 steps a frame. Once the speed slider came in (phase 4), a fixed count stopped making sense, so now each frame steps until it is done or has spent 12 ms on physics, whichever comes first. Past that the leftover time is dropped and the sim slows down instead of the frame rate falling apart.
 
 Every body is drawn as one GPU point. The shader gets x, y and z as three separate inputs, one per array, and puts them together into a position. three.js normally works out a bounding sphere from a single position array to decide if something is on screen. It cannot do that here, so that check is off and I tell it how many points to draw.
 
 Code: `wasm/bindings.cpp`, `web/src/main.ts`.
 
+## The figure-eight orbit
+
+Three equal masses chase each other around one figure-eight shaped curve, each a third of a period behind the next. An orbit where every body follows the same path is called a choreography. Chenciner and Montgomery proved in 2000 that this one exists, and Carles Simó worked out the starting numbers:
+
+    x1 = -x2 = (0.97000436, -0.24308753),  x3 = (0, 0)
+    v3 = (-0.93240737, -0.86473146),  v1 = v2 = -v3 / 2
+    period T = 6.32591398,  all masses 1,  G = 1
+
+The middle body moves twice as fast as the outer two and the other way, so the total momentum is zero and the curve stays put. The total energy is -1.287 and the angular momentum is exactly zero.
+
+The three-body problem is chaotic in general, so why does this one survive? It is linearly stable: a small nudge stays small instead of growing. That is why it keeps its shape in my sim with 32-bit floats. My tests run it with no softening and brute force. After one period every body is back within 7.5e-05 of where it started, and after a third of a period each body sits where the next one started (within 4.6e-04, most of which is the step count not landing exactly on T / 3).
+
+Code: `figure_eight` in `core/scenes.cpp`, tests in `tests/test_presets.cpp`.
+
+## The mini solar system
+
+A sun of mass 1 and five planets on circular orbits at radius 0.4, 0.7, 1.0, 1.5 and 3.0. The planet masses are roughly the real ratios, with a Jupiter of 9.5e-4 on the outside. Each planet gets the circular speed sqrt(G * (M + m) / r), then everything gets one shared nudge so the total momentum is zero. That makes the sun wobble a little against Jupiter, like the real one.
+
+My first layout had Jupiter at 2.2, and the planet at 1.5 drifted 1.4% off its circle in one Jupiter orbit. That was not a bug. Taking Jupiter's mass away fixed it, a smaller timestep did not. Planets that close together really do tug each other's orbits out of shape. Moving Jupiter to 3.0 brought it down to 0.19%. The real Jupiter is about 3.4 times farther out than Mars for a reason.
+
+## Galaxy collision and plunging orbits
+
+Two of my disk galaxies start some distance apart on a stretched orbit around each other. I want to choose how close they get, so the setup works backwards from that. At the far point of an orbit (r_a) a body moves straight sideways, and two things are conserved on the way to the near point (r_p): energy and angular momentum. Solving those two together gives the sideways speed at the far point as a fraction of the circular speed:
+
+    v = sqrt(2 * r_p / (r_a + r_p)) * sqrt(G * M / r_a)
+
+My `two_body_orbit` already takes that fraction, so I build two points on that orbit and drop each whole galaxy onto one of them, recentered so its center of mass lands exactly on the point. The second galaxy is tilted by one radian so the crash is not flat. The first disk spins the same way as the orbit, which is the setup that pulls out the longest tidal tails.
+
+The page uses r_a = 2.5 and r_p = 0.8. My test swaps each galaxy for a single point with its mass and motion, runs them, and the closest approach comes out 0.800.
+
+The collision broke something the single disk never did: energy jumped by 9% at the close pass. A more accurate tree did not help, a smaller timestep did. Stars from one galaxy get flung right through the other galaxy's heavy center, and with softening 0.01 a star that close goes round faster than one timestep. Raising the softening to 0.05 fixed it at full speed (drift 6.7e-04 over the whole run).
+
+## Black hole against a star cluster
+
+A black hole of mass 1 and a ball of stars with total mass 0.01 and radius 0.1, on the same kind of plunging orbit, from 1.5 out to 0.15.
+
+A ball of stars at rest collapses, and one with too much speed flies apart. It holds its size when the motion balances the pull. That balance is the virial theorem: 2K = -W, kinetic energy against potential energy. For an even ball of mass M and radius R the potential energy is -3/5 * G * M^2 / R. If I pick each star's velocity evenly inside a ball of speeds with radius sqrt(G * M / R), the average speed squared is 3/5 of that radius squared, and the balance comes out exactly. My test measures 2K / |W| = 0.99 for 2000 stars. This is not a true steady state, the ball will slosh around a little, but it does not collapse or explode.
+
+What tears it apart is the tide. Near the black hole, the side of the cluster facing it gets pulled harder than the far side. When that difference beats the cluster's own pull, the cluster stretches into a stream. A rough rule is the tidal radius, r_p * (m / 3M)^(1/3), which is 0.15 * (0.01 / 3)^(1/3) = 0.022 here. The cluster is 0.1 across, so it gets shredded.
+
+The energy drift here, about 1e-3, comes from the tree. Halving the timestep does nothing, and at theta 0 the drift drops to 1e-06. A tightly packed cluster is the tree's worst case: every star is close to many others, so little can be lumped together. That also makes it slower per body than the disk.
+
+## The live energy readout
+
+Drift is (E - E0) / |E0|. Dividing by E0 breaks when E0 is near zero, because then a tiny change looks huge. I checked every preset's starting energy and none is near zero relative to its own kinetic and potential energy (`results/presets.md`).
+
+The potential energy is a sum over every pair, O(n^2): 50 million pairs at 10,000 bodies, far too slow for one frame. So the page freezes a copy of the bodies and adds up a few rows of the sum per frame, about 300,000 pairs worth, while the real sim keeps moving. When the last row is in, the readout updates and a new sum starts a second later. The copy matters: adding rows from bodies that keep moving would mix different moments and the total would mean nothing.
+
+Spawning a body adds energy that was never in the system, so the drift would jump for no fault of the physics. A spawn resets the baseline: the next finished sum becomes the new zero. A spawned body starts on a circular orbit around everything, at sqrt(G * M_total / r), so it joins the scene instead of falling straight in.
+
+Code: `potential_rows` in `core/diagnostics.cpp`, `energy_begin` and `energy_work` in `wasm/bindings.cpp`, the readout in `web/src/main.ts`.
+
 ## Still to come
 
 I will add a section for each of these as I build it:
 
-- The figure-eight orbit (phase 4)
 - SIMD and threads (phase 5)
