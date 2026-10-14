@@ -13,6 +13,9 @@ void compute_accel(Bodies& b, float eps) {
     float sx = 0.0f, sy = 0.0f, sz = 0.0f;
 
     // adds up the pull from every other body
+    // the pragma lets the compiler keep 4 running totals and add them at the end, so simd can
+    // do 4 bodies at once. that changes the order of the float adds, which it won't do on its own
+#pragma clang loop vectorize(enable)
     for (std::size_t j = 0; j < n; ++j) {
       // arrow from body i to body j
       const float dx = b.x[j] - b.x[i];
