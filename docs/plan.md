@@ -71,7 +71,7 @@ Written test first.
   - halving the timestep cuts the energy error by about 4 (leapfrog is second order). Measured on an eccentric orbit with a coarse timestep, because on a circular orbit the error sinks below 32-bit rounding and the ratio disappears
 - Done when: all tests pass and the CLI's energy drift for the two-body scene is recorded in `results/`
 
-### Phase 2: Barnes-Hut
+### Phase 2: Barnes-Hut (done)
 
 - Octree built fresh every step, storing total mass and center of mass per node
 - Adjustable theta. theta = 0 must match brute force to within rounding (the sums happen in a different order, so not bit for bit)
@@ -84,6 +84,8 @@ Written test first.
 - A native benchmark harness timing both methods across several N
 - Writes `results/benchmarks.json` and a markdown table
 - Done when: force error against brute force is measured for each theta, and the table shows where Barnes-Hut starts to win
+- Result: at theta 0.5 the two tie at about 1000 bodies in an evenly spread scene, and the tree is 10.69x faster at 30,000 with 0.59% mean force error. Tables in `results/benchmarks.md`
+- Added while building it: a body never treats a cube on its own path down the tree as one far away body, and each cube's mass is summed from its children so the totals stay exact in 32-bit
 
 ### Phase 3: browser
 

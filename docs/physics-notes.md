@@ -155,7 +155,22 @@ Details in my version:
 
 Code: `core/octree.h` and `core/octree.cpp`. `Octree::build` makes the tree and `compute_accel_tree` walks it. The tests in `tests/test_octree.cpp` compare it against brute force.
 
-BENCH_NUMBERS
+What I measured, on one thread with softening 0.01 (full tables in `results/benchmarks.md`):
+
+| N | brute force | tree at theta 0.5 | speedup | mean force error |
+| --- | --- | --- | --- | --- |
+| 1000 | 3.367 ms | 3.396 ms | 0.99x | 0.65% |
+| 3000 | 31.461 ms | 16.376 ms | 1.92x | 0.68% |
+| 10,000 | 369.842 ms | 78.959 ms | 4.68x | 0.61% |
+| 30,000 | 3351.005 ms | 313.357 ms | 10.69x | 0.59% |
+
+That is the evenly spread scene. The tree and brute force tie at about 1000 bodies there. On the clumpy scene the tree is already ahead at 300 bodies (1.19x). Building the tree is a small part of it: 2.6 ms of the 313 ms at 30,000 bodies.
+
+Going from 10,000 to 30,000 bodies makes brute force 9.1 times slower and the tree 4.0 times slower.
+
+Theta trades speed for accuracy. At 30,000 bodies in the even scene, theta 0.3 is 3.0x faster than brute force with 0.13% mean error, 0.5 is 10.7x with 0.59%, 0.7 is 24.8x with 1.3%, and 1.0 is 62.5x with 3.6%.
+
+The worst single body is much further off than the mean, up to 111% at theta 1 and 19% at theta 0.5 in these runs.
 
 Questions I should be able to answer:
 

@@ -17,8 +17,15 @@ Each result records how it was measured:
 | File | What it holds |
 | --- | --- |
 | [energy-drift.md](energy-drift.md) | Energy and momentum drift for the two-body orbit, and the timestep convergence check |
+| [benchmarks.md](benchmarks.md) | Time per force pass for brute force and for Barnes-Hut at four values of theta, from 100 to 30,000 bodies, with the force error of each run |
+| [benchmarks.json](benchmarks.json) | The same benchmark numbers as data |
 
-Benchmarks come in phase 2.
+Both benchmark files are written by `tools/benchmark.cpp`. To measure again:
+
+```bash
+# output folder, commit, machine description
+./build/benchmark results $(git rev-parse --short HEAD) "my machine"
+```
 
 ## Machine
 

@@ -2,11 +2,22 @@
 
 A gravity N-body simulation that runs in the browser. The physics is written in C++ and compiled to WebAssembly, and three.js draws the bodies.
 
-This is a work in progress. The physics core works natively: brute force gravity with softening, a leapfrog integrator, and energy and momentum checks, with 16 tests. There is no browser build or live demo yet.
+This is a work in progress. The physics core works natively: brute force gravity with softening, a Barnes-Hut octree for large scenes, a leapfrog integrator, and energy and momentum checks, with 31 tests. There is no browser build or live demo yet.
 
 ## Numbers so far
 
 On a two-body orbit run for 1000 orbits (a million steps), total energy stays within about 2 parts in 10,000 of where it started. Halving the timestep cuts the energy error by 3.99, which matches what a second order integrator should do. The full table and how I measured it are in [results/energy-drift.md](results/energy-drift.md).
+
+Barnes-Hut against brute force, one force pass on one thread, theta 0.5, bodies spread evenly through a ball:
+
+| Bodies | Brute force | Barnes-Hut | Speedup | Mean force error |
+| --- | --- | --- | --- | --- |
+| 1000 | 3.367 ms | 3.396 ms | 0.99x | 0.65% |
+| 3000 | 31.461 ms | 16.376 ms | 1.92x | 0.68% |
+| 10,000 | 369.842 ms | 78.959 ms | 4.68x | 0.61% |
+| 30,000 | 3351.005 ms | 313.357 ms | 10.69x | 0.59% |
+
+The two methods tie at about 1000 bodies. Other values of theta, a clustered scene and the worst-body errors are in [results/benchmarks.md](results/benchmarks.md).
 
 ## What it will do
 
@@ -33,13 +44,20 @@ To run the two-body orbit and print its energy drift:
 ./build/run_scene 1 1000 100
 ```
 
+To time brute force against Barnes-Hut (takes about a minute and rewrites the two benchmark files):
+
+```bash
+# output folder, commit, machine description
+./build/benchmark results $(git rev-parse --short HEAD) "my machine"
+```
+
 ## Layout
 
 | Folder | What is in it |
 | --- | --- |
 | `core/` | The C++ physics core |
 | `tests/` | Native tests, written with doctest |
-| `tools/` | `run_scene`, a small CLI that runs a scene and prints energy drift |
+| `tools/` | `run_scene`, a small CLI that runs a scene and prints energy drift, and `benchmark`, which times brute force against Barnes-Hut |
 | `third_party/` | The doctest header |
 | `docs/` | The plan and my physics notes |
 | `results/` | Measured numbers and how each one was measured |
