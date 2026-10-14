@@ -19,6 +19,8 @@ Each result records how it was measured:
 | [energy-drift.md](energy-drift.md) | Energy and momentum drift for the two-body orbit, and the timestep convergence check |
 | [benchmarks.md](benchmarks.md) | Time per force pass for brute force and for Barnes-Hut at four values of theta, from 100 to 30,000 bodies, with the force error of each run |
 | [benchmarks.json](benchmarks.json) | The same benchmark numbers as data |
+| [disk-stability.md](disk-stability.md) | How long a disk galaxy stays a disk at different disk masses, and why the browser uses 0.005 |
+| [browser.md](browser.md) | Frame rate and time per physics step in the browser at 2000 bodies |
 
 Both benchmark files are written by `tools/benchmark.cpp`. To measure again:
 

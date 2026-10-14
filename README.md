@@ -19,6 +19,8 @@ Barnes-Hut against brute force, one force pass on one thread, theta 0.5, bodies 
 
 The two methods tie at about 1000 bodies. Other values of theta, a clustered scene and the worst-body errors are in [results/benchmarks.md](results/benchmarks.md).
 
+In the browser (Chrome 155 on the same Intel Mac), a disk of 2000 stars runs at 60 fps, the screen's limit, with 120 physics steps a second at a median 3.42 ms each, using Barnes-Hut at theta 0.7. Details in [results/browser.md](results/browser.md).
+
 ## What it will do
 
 - Simulate thousands of stars, planets and black holes pulling on each other

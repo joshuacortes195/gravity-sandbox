@@ -88,7 +88,7 @@ Written test first.
 - Result: at theta 0.5 the two tie at about 1000 bodies in an evenly spread scene, and the tree is 10.69x faster at 30,000 with 0.59% mean force error. Tables in `results/benchmarks.md`
 - Added while building it: a body never treats a cube on its own path down the tree as one far away body, and each cube's mass is summed from its children so the totals stay exact in 32-bit
 
-### Phase 3: browser
+### Phase 3: browser (done)
 
 - Install emsdk, add the Emscripten build and bindings
 - Vite + TypeScript app in `web/`
@@ -100,6 +100,9 @@ Written test first.
   - with structure of arrays, the renderer needs x, y and z as three separate attributes and a small custom shader. three.js cannot work out a bounding box from that, so culling has to be off and the draw count set by hand
   - anything that moves the arrays breaks old views: WASM memory growth, or a vector reallocating when N changes. Plan: allocate for the largest N once and never grow
 - Done when: the dev server shows bodies orbiting, with fps measured and recorded
+- Result: a disk of 2000 stars runs at 60 fps in Chrome with physics at a median 3.42 ms per step. Numbers in `results/browser.md`
+- Settled: the WASM memory is a fixed 64 MB that never grows, and the page grabs new views of x, y and z after anything that changes the body count, instead of reserving a fixed capacity. The compiled `sim.js` and `sim.wasm` are committed, so the web app builds without emsdk
+- Added while building it: a disk galaxy scene, needed early because a ball at rest just collapses. A cold disk with a tenth of the center's mass broke into clumps within one turn. That is real physics (the Toomre instability), checked with brute force and a smaller timestep, so the browser disk is light, 0.005 of the center. Numbers in `results/disk-stability.md`
 
 ### Phase 4: scenes and controls
 
