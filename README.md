@@ -2,7 +2,7 @@
 
 A gravity N-body simulation that runs in the browser. The physics is written in C++ and compiled to WebAssembly, and three.js draws the bodies.
 
-This is a work in progress. The physics core works natively: brute force gravity with softening, a Barnes-Hut octree for large scenes, a leapfrog integrator, and energy and momentum checks, with 31 tests. There is no browser build or live demo yet.
+This is a work in progress. The physics core has brute force gravity with softening, a Barnes-Hut octree for large scenes, a leapfrog integrator, and energy and momentum checks, with 35 tests. It now runs in the browser too, as a disk of 2000 stars orbiting a heavy center that you can spin around with the mouse. There is no live demo yet.
 
 ## Numbers so far
 
@@ -51,6 +51,22 @@ To time brute force against Barnes-Hut (takes about a minute and rewrites the tw
 ./build/benchmark results $(git rev-parse --short HEAD) "my machine"
 ```
 
+## Run it in the browser
+
+You need [emsdk](https://emscripten.org/docs/getting_started/downloads.html) and Node. The compiled `sim.js` and `sim.wasm` are committed in `web/src/wasm/`, so the web app runs without emsdk unless you change the C++.
+
+```bash
+# rebuild the wasm module after changing core/ or wasm/
+source ~/emsdk/emsdk_env.sh
+emcmake cmake -S . -B build-wasm
+cmake --build build-wasm
+
+# start the dev server
+cd web
+npm install
+npm run dev
+```
+
 ## Layout
 
 | Folder | What is in it |
@@ -58,6 +74,8 @@ To time brute force against Barnes-Hut (takes about a minute and rewrites the tw
 | `core/` | The C++ physics core |
 | `tests/` | Native tests, written with doctest |
 | `tools/` | `run_scene`, a small CLI that runs a scene and prints energy drift, and `benchmark`, which times brute force against Barnes-Hut |
+| `wasm/` | The functions the web page calls into the C++ core |
+| `web/` | The Vite + TypeScript app that draws the sim with three.js |
 | `third_party/` | The doctest header |
 | `docs/` | The plan and my physics notes |
 | `results/` | Measured numbers and how each one was measured |

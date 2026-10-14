@@ -181,10 +181,42 @@ Questions I should be able to answer:
 - Why does the worst body have a much bigger error than the average? The error is measured against each body's own acceleration. A body near the middle of a ball is pulled almost equally from every side, so its net acceleration is small and a normal sized mistake looks large next to it.
 - Why an array of nodes instead of one array per field like the bodies? The walk reads all of a node's fields together, so keeping them side by side is the cache friendly layout here.
 
+## A disk of stars on circular orbits
+
+A ball of bodies at rest just falls in on itself, so for the browser I needed a scene where things go around. A star moves in a circle when gravity's pull is exactly what it takes to bend its path into that circle:
+
+    v^2 / r = G * M / r^2,  so  v = sqrt(G * M / r)
+
+M is the mass pulling it inward. Every star gets that speed, pointing sideways to the line from the center, so it keeps falling around the center instead of into it.
+
+Two details made it work in my sim:
+
+- Softening weakens the pull close in, so the speed has to match the softened force, `v^2 = G * M * r^2 / (r^2 + eps^2)^1.5`. With the plain formula the inner stars start too fast. In my test with softening 0.05, stars on the plain speed swung in and out by up to 50% of their radius in one inner orbit. With the softened speed the worst change was 0.00056%.
+- The disk has mass of its own. I count the center plus the share of the disk inside the star's radius. Stars are spread evenly over the ring's area, so that share is the same random number that picked the radius. I treat that mass as if it sat at the center, which is only exact for a round ball, not a flat disk. For a disk that is light next to its center it is close.
+
+Random star positions leave a little leftover momentum, which would make the whole galaxy drift across the screen. The center gets a small velocity the other way to cancel it.
+
+My first browser disk had a tenth of the center's mass and fell apart within one turn: clumps everywhere and stars thrown outward. I checked it was not a bug by changing one thing at a time. Brute force instead of the tree gave the same mess, and so did a timestep four times smaller, while a massless disk stayed perfect and a lighter one broke up more slowly. So it was real physics. A flat disk of stars with no random motion is unstable under its own gravity (the Toomre instability): a spot that is slightly denser than its neighbors pulls them in, gets denser still, and grows into a clump. Real galaxies are kept stable by stars moving randomly on top of their circles and by a dark matter halo. I have neither, so I made the disk light, 0.005 of the center's mass. It still pulls on itself, and it holds its shape for a full turn. The numbers are in `results/disk-stability.md`.
+
+Code: `disk_galaxy` in `core/scenes.cpp`, tests in `tests/test_scenes.cpp`, and `tools/disk_check.cpp` for the stability check.
+
+## Running it in the browser
+
+WebAssembly is a compact low level format browsers run at close to native speed. Emscripten compiles my C++ to a `.wasm` file plus a small JavaScript loader. The physics in the browser is the same `core/` code the native tests check. Only `wasm/bindings.cpp` is new, a handful of functions the page can call: load a disk, advance some steps, and tell me where x, y and z sit in memory.
+
+A WASM program gets one big flat block of bytes as its memory, and JavaScript sees it as an `ArrayBuffer`. My position arrays live inside it. `new Float32Array(buffer, pointer, n)` is a view, a window onto those bytes, so three.js reads the positions where they already are. Nothing is copied on the JavaScript side. The GPU upload still happens every frame.
+
+Two things can kill a view. If the WASM memory grows, the old buffer is thrown away and every view on it goes dead. If a `std::vector` reallocates, its data moves to a new address. So the memory size is fixed at 64 MB and never grows, and the page grabs fresh views after anything that changes the body count.
+
+The physics runs on a fixed timestep. The browser draws a frame roughly every 16 ms, but never exactly, and leapfrog only keeps energy bounded when dt never changes. So each frame I add the real time that passed to a backlog, and run one physics step for every 1/120 of a second in it. Drawing just shows whatever the state is. There is a cap of 8 steps per frame. Without it, one slow frame would need extra steps, which makes the next frame slower, which needs even more steps. With the cap the extra time is dropped and the sim slows down for a moment instead of locking up.
+
+Every body is drawn as one GPU point. The shader gets x, y and z as three separate inputs, one per array, and puts them together into a position. three.js normally works out a bounding sphere from a single position array to decide if something is on screen. It cannot do that here, so that check is off and I tell it how many points to draw.
+
+Code: `wasm/bindings.cpp`, `web/src/main.ts`.
+
 ## Still to come
 
 I will add a section for each of these as I build it:
 
-- Fixed timestep in the browser (phase 3)
 - The figure-eight orbit (phase 4)
 - SIMD and threads (phase 5)

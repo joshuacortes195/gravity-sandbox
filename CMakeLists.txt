@@ -30,6 +30,11 @@ if(NOT EMSCRIPTEN)
   target_link_libraries(run_scene PRIVATE core)
   target_compile_options(run_scene PRIVATE -Wall -Wextra)
 
+  # checks whether a disk galaxy stays a disk, used to pick the browser's disk mass
+  add_executable(disk_check tools/disk_check.cpp)
+  target_link_libraries(disk_check PRIVATE core)
+  target_compile_options(disk_check PRIVATE -Wall -Wextra)
+
   # times brute force against the tree and writes the tables in results/
   add_executable(benchmark tools/benchmark.cpp)
   target_link_libraries(benchmark PRIVATE core)
@@ -38,4 +43,17 @@ if(NOT EMSCRIPTEN)
   # hands the benchmark the build type and its flags so they end up in the results file
   string(TOUPPER "${CMAKE_BUILD_TYPE}" build_type_upper)
   target_compile_definitions(benchmark PRIVATE BENCH_FLAGS="${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS_${build_type_upper}}")
+endif()
+
+# browser build: the core plus the bindings, written straight into the web app as an es module and a .wasm file
+if(EMSCRIPTEN)
+  add_executable(sim wasm/bindings.cpp)
+  target_link_libraries(sim PRIVATE core)
+  target_compile_options(sim PRIVATE -Wall -Wextra)
+  # fixed size memory that never grows, so the views js holds into it never go dead
+  target_link_options(sim PRIVATE
+    -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=web
+    -sINITIAL_MEMORY=64MB -sALLOW_MEMORY_GROWTH=0
+    -sEXPORTED_RUNTIME_METHODS=HEAPF32 -sFILESYSTEM=0)
+  set_target_properties(sim PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/web/src/wasm)
 endif()

@@ -35,6 +35,7 @@ core/         C++ physics core
 tests/        native tests (doctest)
 third_party/  doctest header
 tools/        native CLI and benchmark harness (phases 1 and 2)
+wasm/         the functions the page calls into the core (phase 3)
 web/          Vite + TypeScript app (phase 3)
 docs/         this plan and my physics notes
 results/      measured numbers and how each was measured

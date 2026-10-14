@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gravity Sandbox</title>
+    <style>
+      /* full screen black page for the sim */
+      html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+      canvas { display: block; }
+      /* styling for the fps readout in the corner */
+      #stats {
+        position: fixed; top: 8px; left: 8px;
+        font: 12px/1.4 ui-monospace, Menlo, monospace; color: #9ab;
+        white-space: pre; pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="stats"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
