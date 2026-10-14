@@ -9,6 +9,7 @@
 #include "integrator.h"
 #include "octree.h"
 #include "scenes.h"
+#include "threads.h"
 
 // the many body scenes are what every tree test and the benchmark run on
 TEST_CASE("random scenes have the right size, total mass and stay inside the unit ball") {
@@ -253,4 +254,32 @@ TEST_CASE("a body does not count itself when cube edges round off") {
   const TreeError e = tree_error(b, 0.0f, 0.7f);
   MESSAGE("worst error with rounded cube edges: " << e.worst);
   CHECK(e.worst < 0.3);
+}
+
+TEST_CASE("splitting the tree walk across threads gives the exact same pull as one thread") {
+  // a few bodies (fewer than threads) and a lot, spread out and clumped up
+  for (bool clumpy : {false, true}) {
+    for (int n : {3, 1001}) {
+      Bodies one = clumpy ? clustered_ball(n, 11) : uniform_ball(n, 11);
+      Octree tree;
+      set_threads(1);
+      compute_accel_tree(one, tree, 0.01f, 0.7f);
+
+      // each body walks the tree on its own in the same order, so every bit should match
+      for (int k : {2, 3, 4}) {
+        // starts from garbage, so a body no thread got to cannot pass with the old answer
+        Bodies many = one;
+        for (auto* a : {&many.ax, &many.ay, &many.az}) a->assign(a->size(), std::nanf(""));
+        set_threads(k);
+        compute_accel_tree(many, tree, 0.01f, 0.7f);
+        CAPTURE(clumpy);
+        CAPTURE(n);
+        CAPTURE(k);
+        CHECK(many.ax == one.ax);
+        CHECK(many.ay == one.ay);
+        CHECK(many.az == one.az);
+      }
+    }
+  }
+  set_threads(1);
 }

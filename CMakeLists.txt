@@ -12,7 +12,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # the physics core, shared by the tests, the cli and later the browser build
-add_library(core STATIC core/gravity.cpp core/diagnostics.cpp core/integrator.cpp core/scenes.cpp core/octree.cpp)
+add_library(core STATIC core/gravity.cpp core/diagnostics.cpp core/integrator.cpp core/scenes.cpp core/octree.cpp core/threads.cpp)
 target_include_directories(core PUBLIC core)
 target_compile_options(core PRIVATE -Wall -Wextra)
 
@@ -52,13 +52,38 @@ endif()
 
 # browser build: the core plus the bindings, written straight into the web app as an es module and a .wasm file
 if(EMSCRIPTEN)
-  add_executable(sim wasm/bindings.cpp)
-  target_link_libraries(sim PRIVATE core)
-  target_compile_options(sim PRIVATE -Wall -Wextra)
-  # fixed size memory that never grows, so the views js holds into it never go dead
-  target_link_options(sim PRIVATE
-    -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=web
-    -sINITIAL_MEMORY=64MB -sALLOW_MEMORY_GROWTH=0
-    -sEXPORTED_RUNTIME_METHODS=HEAPF32 -sFILESYSTEM=0)
-  set_target_properties(sim PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/web/src/wasm)
+  # three builds of the same code: sim (plain, the baseline for measuring), sim-simd (4 floats per
+  # instruction, used when the page cannot share memory) and sim-mt (simd plus threads)
+  # threads need every file built with -pthread, so each build gets its own copy of the core
+  foreach(variant sim sim-simd sim-mt)
+    if(variant STREQUAL "sim")
+      set(flags "")
+    elseif(variant STREQUAL "sim-simd")
+      set(flags -msimd128)
+    else()
+      set(flags -msimd128 -pthread)
+    endif()
+
+    add_library(core-${variant} STATIC core/gravity.cpp core/diagnostics.cpp core/integrator.cpp core/scenes.cpp core/octree.cpp core/threads.cpp)
+    target_include_directories(core-${variant} PUBLIC core)
+    target_compile_options(core-${variant} PRIVATE -Wall -Wextra ${flags})
+
+    add_executable(${variant} wasm/bindings.cpp)
+    target_link_libraries(${variant} PRIVATE core-${variant})
+    target_compile_options(${variant} PRIVATE -Wall -Wextra ${flags})
+    # fixed size memory that never grows, so the views js holds into it never go dead
+    target_link_options(${variant} PRIVATE ${flags}
+      -sMODULARIZE=1 -sEXPORT_ES6=1
+      -sINITIAL_MEMORY=64MB -sALLOW_MEMORY_GROWTH=0
+      -sEXPORTED_RUNTIME_METHODS=HEAPF32 -sFILESYSTEM=0)
+    set_target_properties(${variant} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/web/src/wasm)
+  endforeach()
+
+  target_link_options(sim PRIVATE -sENVIRONMENT=web)
+  target_link_options(sim-simd PRIVATE -sENVIRONMENT=web)
+  # the threaded build starts one worker per logical core while it loads, so a thread never has to
+  # wait for a worker mid step (the page's main thread is not allowed to sit and wait for one).
+  # strict means asking for more threads than that fails loudly instead of hanging
+  target_link_options(sim-mt PRIVATE -sENVIRONMENT=web,worker
+    -sPTHREAD_POOL_SIZE=navigator.hardwareConcurrency -sPTHREAD_POOL_SIZE_STRICT=2)
 endif()

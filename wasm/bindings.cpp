@@ -7,6 +7,7 @@
 #include "integrator.h"
 #include "octree.h"
 #include "scenes.h"
+#include "threads.h"
 
 // the one sim the page drives, plus its tree so the tree memory is reused every step
 static Bodies bodies;
@@ -40,6 +41,14 @@ EMSCRIPTEN_KEEPALIVE void spawn(float x, float y, float z, float vx, float vy, f
 EMSCRIPTEN_KEEPALIVE void advance(int steps, float dt, float eps, float theta) {
   for (int s = 0; s < steps; ++s) step(bodies, tree, dt, eps, theta);
 }
+
+// same steps with brute force instead of the tree, only the benchmark page uses it
+EMSCRIPTEN_KEEPALIVE void advance_brute(int steps, float dt, float eps) {
+  for (int s = 0; s < steps; ++s) step(bodies, dt, eps);
+}
+
+// how many threads share the force pass, only the threaded build can go above 1
+EMSCRIPTEN_KEEPALIVE void threads(int k) { set_threads(k); }
 
 // how many bodies there are right now
 EMSCRIPTEN_KEEPALIVE int body_count() { return int(bodies.size()); }

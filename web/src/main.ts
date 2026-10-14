@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import createSim from './wasm/sim.js';
+import createSimd from './wasm/sim-simd.js';
+import createMt from './wasm/sim-mt.js';
 import { Panel, type Actions } from './Panel';
 import { PRESETS, START_PRESET, START_THETA } from './presets';
 import { setReadout } from './store';
@@ -16,7 +17,11 @@ const PHYSICS_BUDGET_MS = 12;
 const ENERGY_PAIRS_PER_FRAME = 300_000;
 const ENERGY_EVERY_MS = 1000;
 
-const sim = await createSim();
+// threads need shared memory, which the browser only allows on a cross-origin isolated page
+// anywhere else the single thread simd build runs instead
+const THREADS = crossOriginIsolated ? navigator.hardwareConcurrency : 1;
+const sim = crossOriginIsolated ? await createMt() : await createSimd();
+sim._threads(THREADS);
 
 // renderer, scene and a camera looking down at the disk from an angle
 const renderer = new THREE.WebGLRenderer({ antialias: false });
@@ -252,6 +257,7 @@ function frame(now: number) {
       stepsPerSecond: stepsDone / seconds,
       simTime,
       drift,
+      threads: THREADS,
     });
     frames = 0;
     stepsDone = 0;

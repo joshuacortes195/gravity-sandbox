@@ -1,8 +1,10 @@
 #include "octree.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 
+#include "threads.h"
 #include "units.h"
 
 // counts one body into a cube's totals, the center of mass holds mass * position until the end of build
@@ -117,68 +119,75 @@ void compute_accel_tree(Bodies& b, Octree& tree, float eps, float theta) {
   const float theta2 = theta * theta;
   const Node* nodes = tree.nodes.data();
 
-  for (int i = 0; i < n; ++i) {
-    // running total of the pull on body i
-    float sx = 0.0f, sy = 0.0f, sz = 0.0f;
+  // every thread grabs the next block of 64 bodies until none are left, so a thread that drew
+  // cheap bodies just takes more blocks, and no two threads write right next to each other
+  std::atomic<int> next_block{0};
+  run_on_threads([&] {
+    for (int start; (start = next_block.fetch_add(64)) < n;) {
+      for (int i = start; i < std::min(start + 64, n); ++i) {
+        // running total of the pull on body i
+        float sx = 0.0f, sy = 0.0f, sz = 0.0f;
 
-    // adds the pull of one point mass sitting at the end of the arrow (dx, dy, dz), same formula as brute force
-    auto pull_from = [&](float dx, float dy, float dz, float mass) {
-      const float r2 = dx * dx + dy * dy + dz * dz + eps2;
-      const float r3 = r2 * std::sqrt(r2);
-      const float pull = r3 > 0.0f ? G * mass / r3 : 0.0f;
-      sx += pull * dx;
-      sy += pull * dy;
-      sz += pull * dz;
-    };
+        // adds the pull of one point mass sitting at the end of the arrow (dx, dy, dz), same formula as brute force
+        auto pull_from = [&](float dx, float dy, float dz, float mass) {
+          const float r2 = dx * dx + dy * dy + dz * dz + eps2;
+          const float r3 = r2 * std::sqrt(r2);
+          const float pull = r3 > 0.0f ? G * mass / r3 : 0.0f;
+          sx += pull * dx;
+          sy += pull * dy;
+          sz += pull * dz;
+        };
 
-    // cubes still to look at, starting from the root
-    // each level can leave 7 waiting, so the depth limit keeps this well inside 256
-    int todo[256];
-    int count = 0;
-    todo[count++] = 0;
+        // cubes still to look at, starting from the root
+        // each level can leave 7 waiting, so the depth limit keeps this well inside 256
+        int todo[256];
+        int count = 0;
+        todo[count++] = 0;
 
-    // the cube on body i's own path down the tree that has not been opened yet, starting at the root
-    int mine = 0;
+        // the cube on body i's own path down the tree that has not been opened yet, starting at the root
+        int mine = 0;
 
-    while (count > 0) {
-      const int k = todo[--count];
-      const Node& nd = nodes[k];
+        while (count > 0) {
+          const int k = todo[--count];
+          const Node& nd = nodes[k];
 
-      // an empty cube pulls on nothing
-      if (nd.mass == 0.0f) continue;
+          // an empty cube pulls on nothing
+          if (nd.mass == 0.0f) continue;
 
-      // a leaf: add the pull of each body in it one by one
-      if (nd.child < 0) {
-        for (int j = nd.body; j >= 0; j = tree.next[j]) {
-          pull_from(b.x[j] - b.x[i], b.y[j] - b.y[i], b.z[j] - b.z[i], b.m[j]);
+          // a leaf: add the pull of each body in it one by one
+          if (nd.child < 0) {
+            for (int j = nd.body; j >= 0; j = tree.next[j]) {
+              pull_from(b.x[j] - b.x[i], b.y[j] - b.y[i], b.z[j] - b.z[i], b.m[j]);
+            }
+            continue;
+          }
+
+          // arrow from body i to the cube's center of mass
+          const float dx = nd.cx - b.x[i];
+          const float dy = nd.cy - b.y[i];
+          const float dz = nd.cz - b.z[i];
+
+          // a cube that holds body i can never be treated as far away, that would count its own mass
+          // it is always opened, and the child the body was sorted into becomes the next one to watch for
+          if (k == mine) {
+            mine = nd.child + octant(nd, b, i);
+            for (int c = 0; c < 8; ++c) todo[count++] = nd.child + c;
+            continue;
+          }
+
+          // the opening rule: width / distance under theta means the cube is small and far enough
+          // to count as one body, otherwise look inside it
+          if (nd.size * nd.size < theta2 * (dx * dx + dy * dy + dz * dz)) {
+            pull_from(dx, dy, dz, nd.mass);
+          } else {
+            for (int c = 0; c < 8; ++c) todo[count++] = nd.child + c;
+          }
         }
-        continue;
-      }
 
-      // arrow from body i to the cube's center of mass
-      const float dx = nd.cx - b.x[i];
-      const float dy = nd.cy - b.y[i];
-      const float dz = nd.cz - b.z[i];
-
-      // a cube that holds body i can never be treated as far away, that would count its own mass
-      // it is always opened, and the child the body was sorted into becomes the next one to watch for
-      if (k == mine) {
-        mine = nd.child + octant(nd, b, i);
-        for (int c = 0; c < 8; ++c) todo[count++] = nd.child + c;
-        continue;
-      }
-
-      // the opening rule: width / distance under theta means the cube is small and far enough
-      // to count as one body, otherwise look inside it
-      if (nd.size * nd.size < theta2 * (dx * dx + dy * dy + dz * dz)) {
-        pull_from(dx, dy, dz, nd.mass);
-      } else {
-        for (int c = 0; c < 8; ++c) todo[count++] = nd.child + c;
+        b.ax[i] = sx;
+        b.ay[i] = sy;
+        b.az[i] = sz;
       }
     }
-
-    b.ax[i] = sx;
-    b.ay[i] = sy;
-    b.az[i] = sz;
-  }
+  });
 }

@@ -4,6 +4,8 @@ export interface Sim {
   _load_scene(which: number, n: number, seed: number, eps: number, theta: number): void;
   _spawn(x: number, y: number, z: number, vx: number, vy: number, vz: number, m: number, eps: number, theta: number): void;
   _advance(steps: number, dt: number, eps: number, theta: number): void;
+  _advance_brute(steps: number, dt: number, eps: number): void;
+  _threads(k: number): void;
   _body_count(): number;
   _pos_x(): number;
   _pos_y(): number;

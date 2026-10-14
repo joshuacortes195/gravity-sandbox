@@ -24,6 +24,8 @@ function Readouts() {
       <dd>{r.fps.toFixed(0)}</dd>
       <dt>physics</dt>
       <dd>{r.msPerStep.toFixed(2)} ms/step</dd>
+      <dt>threads</dt>
+      <dd>{r.threads}</dd>
       <dt>steps/s</dt>
       <dd>{r.stepsPerSecond.toFixed(0)}</dd>
       <dt>sim time</dt>
