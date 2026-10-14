@@ -1,5 +1,5 @@
 import { useState, useSyncExternalStore } from 'react';
-import { PRESETS, START_PRESET } from './presets';
+import { PRESETS, START_PRESET, START_THETA } from './presets';
 import { getReadout, subscribe } from './store';
 
 // what the panel can ask the sim to do, handed in by main.ts
@@ -40,7 +40,7 @@ export function Panel({ actions }: { actions: Actions }) {
   const [n, setN] = useState(PRESETS[START_PRESET].n ?? 0);
   const [paused, setPaused] = useState(false);
   const [speedIndex, setSpeedIndex] = useState(2);
-  const [theta, setTheta] = useState(0.7);
+  const [theta, setTheta] = useState(START_THETA);
   const p = PRESETS[preset];
 
   // switching scenes puts the body count back to that scene's default

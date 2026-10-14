@@ -20,5 +20,6 @@ export const PRESETS: Preset[] = [
   { name: 'Disk galaxy', dt: 0.002, eps: 0.01, n: 2000, nMax: 10000, camera: 2.7, dot: 6, spawnMass: 0.1 },
 ];
 
-// the scene that loads first
+// the scene that loads first, and the tree accuracy the page starts with
 export const START_PRESET = 2;
+export const START_THETA = 0.7;

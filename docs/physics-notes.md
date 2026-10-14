@@ -244,7 +244,7 @@ My `two_body_orbit` already takes that fraction, so I build two points on that o
 
 The page uses r_a = 2.5 and r_p = 0.8. My test swaps each galaxy for a single point with its mass and motion, runs them, and the closest approach comes out 0.800.
 
-The collision broke something the single disk never did: energy jumped by 9% at the close pass. A more accurate tree did not help, a smaller timestep did. Stars from one galaxy get flung right through the other galaxy's heavy center, and with softening 0.01 a star that close goes round faster than one timestep. Raising the softening to 0.05 fixed it at full speed (drift 6.7e-04 over the whole run).
+The collision broke something the single disk never did: energy jumped by 9% at the close pass. A more accurate tree did not help, a smaller timestep did. Stars from one galaxy get flung right through the other galaxy's heavy center, and with softening 0.01 a star that close goes round in about 0.0063 time units, only about 3 timesteps. Leapfrog needs far more steps than that per orbit. Raising the softening to 0.05 fixed it at full speed (drift 6.7e-04 over the whole run).
 
 ## Black hole against a star cluster
 
@@ -252,7 +252,7 @@ A black hole of mass 1 and a ball of stars with total mass 0.01 and radius 0.1, 
 
 A ball of stars at rest collapses, and one with too much speed flies apart. It holds its size when the motion balances the pull. That balance is the virial theorem: 2K = -W, kinetic energy against potential energy. For an even ball of mass M and radius R the potential energy is -3/5 * G * M^2 / R. If I pick each star's velocity evenly inside a ball of speeds with radius sqrt(G * M / R), the average speed squared is 3/5 of that radius squared, and the balance comes out exactly. My test measures 2K / |W| = 0.99 for 2000 stars. This is not a true steady state, the ball will slosh around a little, but it does not collapse or explode.
 
-What tears it apart is the tide. Near the black hole, the side of the cluster facing it gets pulled harder than the far side. When that difference beats the cluster's own pull, the cluster stretches into a stream. A rough rule is the tidal radius, r_p * (m / 3M)^(1/3), which is 0.15 * (0.01 / 3)^(1/3) = 0.022 here. The cluster is 0.1 across, so it gets shredded.
+What tears it apart is the tide. Near the black hole, the side of the cluster facing it gets pulled harder than the far side. When that difference beats the cluster's own pull, the cluster stretches into a stream. A rough rule is the tidal radius, r_p * (m / 3M)^(1/3), which is 0.15 * (0.01 / 3)^(1/3) = 0.022 here. The cluster's radius is 0.1, so it gets shredded.
 
 The energy drift here, about 1e-3, comes from the tree. Halving the timestep does nothing, and at theta 0 the drift drops to 1e-06. A tightly packed cluster is the tree's worst case: every star is close to many others, so little can be lumped together. That also makes it slower per body than the disk.
 
@@ -262,7 +262,7 @@ Drift is (E - E0) / |E0|. Dividing by E0 breaks when E0 is near zero, because th
 
 The potential energy is a sum over every pair, O(n^2): 50 million pairs at 10,000 bodies, far too slow for one frame. So the page freezes a copy of the bodies and adds up a few rows of the sum per frame, about 300,000 pairs worth, while the real sim keeps moving. When the last row is in, the readout updates and a new sum starts a second later. The copy matters: adding rows from bodies that keep moving would mix different moments and the total would mean nothing.
 
-Spawning a body adds energy that was never in the system, so the drift would jump for no fault of the physics. A spawn resets the baseline: the next finished sum becomes the new zero. A spawned body starts on a circular orbit around everything, at sqrt(G * M_total / r), so it joins the scene instead of falling straight in.
+Spawning a body adds energy that was never in the system, so the drift would jump for no fault of the physics. A spawn resets the baseline: the next finished sum becomes the new zero. A spawned body starts on a circular orbit around everything, at sqrt(G * M_total / r), so it joins the scene instead of falling straight in. It also brings momentum the scene did not have, so after a click the whole scene slowly drifts. That shows most in the figure-eight, where a spawned body weighs 0.3 against a total of 3.
 
 Code: `potential_rows` in `core/diagnostics.cpp`, `energy_begin` and `energy_work` in `wasm/bindings.cpp`, the readout in `web/src/main.ts`.
 

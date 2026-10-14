@@ -4,11 +4,8 @@ import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import createSim from './wasm/sim.js';
 import { Panel, type Actions } from './Panel';
-import { PRESETS, START_PRESET } from './presets';
+import { PRESETS, START_PRESET, START_THETA } from './presets';
 import { setReadout } from './store';
-
-// tree accuracy the page starts with
-const START_THETA = 0.7;
 
 // physics steps per real second at 1x speed, and the most time one frame may spend on physics
 // past that budget the sim slows down instead of the frame rate falling apart
@@ -86,6 +83,8 @@ scene.add(points);
 // points the three attributes straight at the x, y, z arrays inside wasm memory, no copy
 // has to run again whenever the body count changes, since the arrays may have moved
 function attachViews() {
+  // frees the gpu copies of the old arrays before swapping in new ones
+  geometry.dispose();
   const n = sim._body_count();
   const buffer = sim.HEAPF32.buffer;
   geometry.setAttribute('px', new THREE.BufferAttribute(new Float32Array(buffer, sim._pos_x(), n), 1));
@@ -98,7 +97,6 @@ function attachViews() {
   // total mass, for sizing dots and for the speed of spawned bodies
   material.uniforms.total.value = masses.reduce((a, b) => a + b, 0);
 }
-
 
 // what the panel has picked, read by the loop every frame
 let preset = PRESETS[START_PRESET];
@@ -162,10 +160,13 @@ const ground = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 let downX = 0;
 let downY = 0;
 renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
   downX = e.clientX;
   downY = e.clientY;
 });
 renderer.domElement.addEventListener('pointerup', (e) => {
+  // only a plain left click or tap, the other buttons pan the camera
+  if (e.button !== 0) return;
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 5) return;
 
   // turns the screen point into a ray and finds where it crosses the plane

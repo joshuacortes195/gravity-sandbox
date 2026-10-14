@@ -48,7 +48,7 @@ With the softening the single disk uses (0.01), energy jumped by 9% at the first
 | 0.05 | 0.002 | 0.7 | 3.2e-04 | 5.6e-04 |
 | 0.1 | 0.002 | 0.7 | 1.3e-04 | 3.1e-04 |
 
-A more accurate tree did not help, a smaller timestep did. The cause is stars from one galaxy getting flung right through the other galaxy's heavy center. With softening 0.01 a star that close goes round in about 0.001 time units, which is shorter than the timestep, so leapfrog cannot follow it. A single disk never has that problem because its stars start at radius 0.1. Raising the softening to 0.05 keeps the full speed timestep and brings the drift under 1e-3.
+A more accurate tree did not help, a smaller timestep did. The cause is stars from one galaxy getting flung right through the other galaxy's heavy center. With softening 0.01 a star that close goes round in about 2 pi sqrt(eps^3 / M) = 0.0063 time units, only about 3 timesteps, and leapfrog needs far more steps than that per orbit to follow it. A single disk never has that problem because its stars start at radius 0.1. Raising the softening to 0.05 keeps the full speed timestep and brings the drift under 1e-3.
 
 ## Black hole vs cluster: the drift comes from the tree
 

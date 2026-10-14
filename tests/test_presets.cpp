@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 #include "doctest.h"
@@ -148,12 +149,29 @@ TEST_CASE("galaxy collision: two galaxies whose centers swing past each other at
   CHECK(std::hypot(g2.x - g1.x, g2.y - g1.y, g2.z - g1.z) == doctest::Approx(r_a).epsilon(1e-5));
   const double closest = closest_approach(g1, g2, 8.0);
   MESSAGE("galaxy collision closest approach: " << closest);
-  CHECK(closest == doctest::Approx(r_p).epsilon(0.01));
+  CHECK(closest == doctest::Approx(r_p).epsilon(1e-3));
 
-  // the second disk is tilted out of the first one's plane, so the crash is not flat
-  bool tilted = false;
-  for (int i = n + 2; i < 2 * (n + 1); ++i) tilted = tilted || std::fabs(b.z[i] - b.z[n + 1]) > 0.1f;
-  CHECK(tilted);
+  // which way each disk spins, as a unit vector: stars' r x v summed about their own galaxy's center
+  auto spin = [&](std::size_t first, const Clump& g) {
+    double lx = 0, ly = 0, lz = 0;
+    for (std::size_t i = first + 1; i < first + n + 1; ++i) {
+      const double x = b.x[i] - g.x, y = b.y[i] - g.y, z = b.z[i] - g.z;
+      const double vx = b.vx[i] - g.vx, vy = b.vy[i] - g.vy, vz = b.vz[i] - g.vz;
+      lx += b.m[i] * (y * vz - z * vy);
+      ly += b.m[i] * (z * vx - x * vz);
+      lz += b.m[i] * (x * vy - y * vx);
+    }
+    const double len = std::sqrt(lx * lx + ly * ly + lz * lz);
+    return std::array<double, 3>{lx / len, ly / len, lz / len};
+  };
+
+  // the first disk spins the same way as the orbit, straight up z
+  // the second is tipped one radian about x, its stars' motion turned along with them so it still spins as a disk
+  const auto s1 = spin(0, g1), s2 = spin(n + 1, g2);
+  CHECK(s1[2] == doctest::Approx(1.0).epsilon(1e-6));
+  CHECK(s2[0] == doctest::Approx(0.0).scale(1.0).epsilon(1e-6));
+  CHECK(s2[1] == doctest::Approx(-std::sin(1.0)).epsilon(1e-5));
+  CHECK(s2[2] == doctest::Approx(std::cos(1.0)).epsilon(1e-5));
 }
 
 TEST_CASE("black hole and cluster: the cluster dips to the asked distance from the hole") {
@@ -174,7 +192,7 @@ TEST_CASE("black hole and cluster: the cluster dips to the asked distance from t
   CHECK(std::hypot(cluster.x - hole.x, cluster.y - hole.y, cluster.z - hole.z) == doctest::Approx(r_a).epsilon(1e-5));
   const double closest = closest_approach(hole, cluster, 4.0);
   MESSAGE("black hole cluster closest approach: " << closest);
-  CHECK(closest == doctest::Approx(r_p).epsilon(0.01));
+  CHECK(closest == doctest::Approx(r_p).epsilon(1e-3));
 }
 
 TEST_CASE("the cluster's own random motion balances its own pull (virial ratio near 1)") {
