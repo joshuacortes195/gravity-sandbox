@@ -35,6 +35,11 @@ if(NOT EMSCRIPTEN)
   target_link_libraries(disk_check PRIVATE core)
   target_compile_options(disk_check PRIVATE -Wall -Wextra)
 
+  # runs one of the browser presets natively and prints its energy drift
+  add_executable(preset_check tools/preset_check.cpp)
+  target_link_libraries(preset_check PRIVATE core)
+  target_compile_options(preset_check PRIVATE -Wall -Wextra)
+
   # times brute force against the tree and writes the tables in results/
   add_executable(benchmark tools/benchmark.cpp)
   target_link_libraries(benchmark PRIVATE core)
