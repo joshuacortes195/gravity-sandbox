@@ -4,7 +4,7 @@ The web app at commit 8db452b, production build (`npm run build`, served with `v
 
 - Machine: Intel Core i5-8259U @ 2.30GHz, 4 physical / 8 logical cores, 8 GB RAM, macOS 15.7.7
 - GPU: Intel Iris Plus Graphics 655 (WebGL2 through ANGLE on Metal)
-- Browser: Chrome 155.0.8059.79, a visible window driven by agent-browser 0.39.1, 1200 x 610 pixels at device pixel ratio 2
+- Browser: Chrome 155.0.8059.79, an automated visible window, 1200 x 610 pixels at device pixel ratio 2
 - WASM: emcc 6.0.12, -O3, 64 MB fixed memory, one thread, no SIMD
 - Scene: disk galaxy, 2000 stars plus the center (2001 bodies), center mass 1, disk mass 0.005, radius 1
 - Physics: Barnes-Hut at theta 0.7, softening 0.01, dt 0.002, 120 steps a second, at most 8 steps a frame
@@ -18,6 +18,8 @@ The web app at commit 8db452b, production build (`npm run build`, served with `v
 | fps | 59.9 | 60.0 | 60.1 |
 | physics ms/step | 3.29 | 3.42 | 4.48 |
 | steps/s | 120 | 120 | 120 |
+
+The disk stays a disk for at least the first turn of its outer edge, about 26 seconds here. That is as far as I checked it, in `disk-stability.md`. A cold disk is unstable at any mass, so a light one only breaks up slowly, not never.
 
 The screen refreshes at 60 Hz, so 60 fps is the ceiling. This shows the sim keeps up at 2000 bodies. It does not show how much room is left.
 

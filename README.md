@@ -2,7 +2,7 @@
 
 A gravity N-body simulation that runs in the browser. The physics is written in C++ and compiled to WebAssembly, and three.js draws the bodies.
 
-This is a work in progress. The physics core has brute force gravity with softening, a Barnes-Hut octree for large scenes, a leapfrog integrator, and energy and momentum checks, with 35 tests. It now runs in the browser too, as a disk of 2000 stars orbiting a heavy center that you can spin around with the mouse. There is no live demo yet.
+This is a work in progress. The physics core has brute force gravity with softening, a Barnes-Hut octree for large scenes, a leapfrog integrator, and energy and momentum checks, with 36 tests. It now runs in the browser too, as a disk of 2000 stars orbiting a heavy center that you can spin around with the mouse. There is no live demo yet.
 
 ## Numbers so far
 

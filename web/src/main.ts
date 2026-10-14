@@ -102,7 +102,7 @@ let last = performance.now();
 
 // runs once per screen refresh: catch the physics up in fixed steps, then draw
 function frame(now: number) {
-  backlog += (now - last) / 1000;
+  backlog += Math.max(0, now - last) / 1000;
   last = now;
 
   // as many whole steps as the backlog covers, but never more than the cap

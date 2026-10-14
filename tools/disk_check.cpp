@@ -1,5 +1,6 @@
 // runs a disk galaxy and prints how much of it is still a disk, four times over the run
 // usage: disk_check n disk_mass eps dt theta steps   (theta below 0 means brute force)
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -40,7 +41,7 @@ int main(int argc, char** argv) {
     if (brute) step(b, dt, eps); else step(b, tree, dt, eps, theta);
 
     // every quarter of the run: share of stars whose radius moved over 10%, the farthest star, and energy drift
-    if (s % (steps / 4) == 0) {
+    if (s % std::max(1, steps / 4) == 0) {
       int moved = 0;
       float farthest = 0;
       for (std::size_t i = 1; i < b.size(); ++i) {

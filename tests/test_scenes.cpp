@@ -49,6 +49,21 @@ TEST_CASE("disk stars around a lone center move at the softened circular speed, 
   }
 }
 
+TEST_CASE("disk stars also feel the part of the disk inside their orbit") {
+  const float eps = 0.05f, center = 1.0f, disk = 0.5f, radius = 1.0f, inner = 0.1f;
+  const Bodies b = disk_galaxy(200, center, disk, radius, eps, 9);
+
+  for (std::size_t i = 1; i < b.size(); ++i) {
+    const float r2 = b.x[i] * b.x[i] + b.y[i] * b.y[i];
+    const float speed = std::sqrt(b.vx[i] * b.vx[i] + b.vy[i] * b.vy[i]);
+
+    // stars are spread evenly over the ring's area, so the share of the disk inside radius r is the share of the area
+    const float share = (r2 - inner * inner) / (radius * radius - inner * inner);
+    const float expected = std::sqrt((center + share * disk) * r2 / std::pow(r2 + eps * eps, 1.5f));
+    CHECK(speed == doctest::Approx(expected).epsilon(1e-4));
+  }
+}
+
 TEST_CASE("a disk galaxy has no net momentum, so it does not drift off") {
   const Bodies b = disk_galaxy(300, 1.0f, 0.5f, 1.0f, 0.01f, 11);
 
@@ -79,5 +94,5 @@ TEST_CASE("massless disk stars stay on their circles for a whole inner orbit") {
     worst = std::max(worst, std::fabs(std::hypot(b.x[i], b.y[i]) - r0[i]) / r0[i]);
   }
   MESSAGE("worst radius change over one inner orbit: " << worst);
-  CHECK(worst < 0.01f);
+  CHECK(worst < 1e-4f);
 }

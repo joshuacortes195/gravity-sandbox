@@ -35,7 +35,7 @@ Same settings as the browser (softening 0.01, dt 0.002, tree at theta 0.7), run 
 | 0.005 | 0.8% | 1.15 | 1.08e-05 |
 | 0.001 | 0.0% | 1.01 | 1.73e-07 |
 
-I picked 0.005: the stars still pull on each other, and under 1% of them wander off in the first turn.
+I picked 0.005: the stars still pull on each other, and under 1% of them wander off in the first turn. I only checked one turn. A cold disk is unstable at any mass, so a light one breaks up slowly, not never.
 
 ## Measure again
 
