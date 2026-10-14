@@ -11,16 +11,22 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# the physics core, header only for now, source files get added in phase 1
-add_library(core INTERFACE)
-target_include_directories(core INTERFACE core)
+# the physics core, shared by the tests, the cli and later the browser build
+add_library(core STATIC core/gravity.cpp core/diagnostics.cpp core/integrator.cpp core/scenes.cpp)
+target_include_directories(core PUBLIC core)
+target_compile_options(core PRIVATE -Wall -Wextra)
 
 # native test runner, skipped when building for the browser
 if(NOT EMSCRIPTEN)
   enable_testing()
-  add_executable(tests tests/test_main.cpp tests/test_units.cpp)
+  add_executable(tests tests/test_main.cpp tests/test_gravity.cpp tests/test_diagnostics.cpp tests/test_integrator.cpp)
   target_include_directories(tests SYSTEM PRIVATE third_party/doctest)
   target_link_libraries(tests PRIVATE core)
   target_compile_options(tests PRIVATE -Wall -Wextra)
   add_test(NAME tests COMMAND tests)
+
+  # small cli that runs a scene and prints energy drift
+  add_executable(run_scene tools/run_scene.cpp)
+  target_link_libraries(run_scene PRIVATE core)
+  target_compile_options(run_scene PRIVATE -Wall -Wextra)
 endif()
