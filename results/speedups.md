@@ -69,3 +69,7 @@ The same pragma also vectorizes the native build, so native brute force got abou
 ## Main page
 
 The main page in the same Chrome, cross-origin isolated, picked the threaded build with 4 threads. On the galaxy collision preset (2002 bodies, 1x speed, theta 0.7) about 10 seconds after load the readout showed 60 fps, 3.69 ms per step and 120 steps a second, with no console errors. That was one reading at commit 739ac8c, before the fix (the fix does not touch the tree code the main page uses). Its ms/step includes the time the main thread spins waiting on its helpers.
+
+## Not measured
+
+Safari, Firefox and phones. The page asks for the threaded build only when it is cross-origin isolated, so any browser that refuses shared memory gets the single thread SIMD build. I have not checked that Safari draws from views into shared memory.
