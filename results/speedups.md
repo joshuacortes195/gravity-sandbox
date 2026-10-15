@@ -12,23 +12,23 @@ Each of the three WASM builds timed on the same scenes, from one page in one bro
 - Each scene at its browser preset settings (`web/src/presets.ts`), seed 1, theta 0.7
 - Time: one whole step (tree build, tree walk or brute force, and the leapfrog update), the median of 15 batches of 5 steps after 1 second of warmup steps
 - Each number below is the median of 3 separate page loads. The range is the lowest and highest of those 3
-- Speedup is the plain build's time divided by this one, on the same scene
+- Speedup is the plain build's median divided by this one, on the same scene, from the medians as printed
 
 ## Result
 
 | Scene | Bodies | plain | simd | mt, 2 threads | mt, 4 threads |
 | --- | --- | --- | --- | --- | --- |
-| disk, tree | 2001 | 3.53 ms | 3.60 ms (0.98x) | 2.04 ms (1.73x) | 1.30 ms (2.71x) |
-| disk, tree | 10001 | 24.55 ms | 24.90 ms (0.99x) | 12.57 ms (1.95x) | 7.54 ms (3.25x) |
-| galaxy collision, tree | 2002 | 4.47 ms | 4.36 ms (1.02x) | 2.46 ms (1.82x) | 2.14 ms (2.09x) |
-| black hole and cluster, tree | 1001 | 3.74 ms | 3.62 ms (1.03x) | 2.06 ms (1.81x) | 1.54 ms (2.43x) |
+| disk, tree | 2001 | 3.53 ms | 3.60 ms (0.98x) | 2.04 ms (1.73x) | 1.30 ms (2.72x) |
+| disk, tree | 10001 | 24.55 ms | 24.90 ms (0.99x) | 12.57 ms (1.95x) | 7.54 ms (3.26x) |
+| galaxy collision, tree | 2002 | 4.47 ms | 4.36 ms (1.03x) | 2.46 ms (1.82x) | 2.14 ms (2.09x) |
+| black hole and cluster, tree | 1001 | 3.74 ms | 3.62 ms (1.03x) | 2.06 ms (1.82x) | 1.54 ms (2.43x) |
 | disk, brute force | 2001 | 18.71 ms | 7.66 ms (2.44x) | not threaded | not threaded |
 
 What I take from it:
 
 - SIMD speeds up brute force 2.44x and does nothing for the tree. Brute force is one flat loop the compiler can run 4 bodies at a time. The tree walk branches on every cube
-- 4 threads give 3.25x on the big disk, and less on the smaller scenes. The tree build stays on one thread, and on a small step it is a bigger share of the time
-- The threaded build on 1 thread runs at 0.93x to 1.00x of plain on the tree scenes, against 0.98x to 1.03x for simd. Building with threads costs up to about 11% on one thread (cluster: 4.04 ms against 3.62 ms), and 2 threads already more than make that back
+- 4 threads give 3.26x on the big disk, and only 2.09x to 2.72x on the scenes near 2000 bodies. The tree build alone cannot explain that: natively it is about 3% of a tree force pass at 1000 to 2000 bodies (`benchmarks.md`), which would still allow about 3.5x. The other costs that do not shrink with threads are the leapfrog update, which stays on one thread, and the fixed cost of waking the helpers and waiting for them every step, with only 3 or 4 blocks of 64 bodies per thread at this size. I did not measure how the time splits between those. Two of the 4 thread runs on small scenes were also slow outliers (2.95 and 2.73 ms)
+- The threaded build on 1 thread runs at 0.93x to 1.00x of plain on the tree scenes, against 0.98x to 1.03x for simd. Building with threads costs up to about 12% against simd on one thread (cluster: 4.04 ms against 3.62 ms, 8% against plain), and 2 threads already more than make that back
 
 ## Every run
 
@@ -68,7 +68,7 @@ The same pragma also vectorizes the native build, so native brute force got abou
 
 ## Main page
 
-The main page in the same Chrome, cross-origin isolated, picked the threaded build with 4 threads. On the galaxy collision preset (2002 bodies, 1x speed, theta 0.7) about 10 seconds after load the readout showed 60 fps, 3.69 ms per step and 120 steps a second, with no console errors. That was one reading at commit 739ac8c, before the fix (the fix does not touch the tree code the main page uses). Its ms/step includes the time the main thread spins waiting on its helpers.
+The main page in the same Chrome, cross-origin isolated, picked the threaded build with 4 threads. On the galaxy collision preset (2002 bodies, 1x speed, theta 0.7) about 10 seconds after load the readout showed 60 fps, 3.69 ms per step and 120 steps a second, with no console errors. That was one reading at commit 739ac8c, before the fix (the fix does not touch the tree code the main page uses). Its ms/step includes the time the main thread spins waiting on its helpers. 3.69 ms is well above the 2.14 ms the benchmark page measured for the same scene on 4 threads, and close to one thread (4.36 ms). The main page read it about 10 seconds into the scene while the benchmark times the start, and the main page is also drawing every frame, but I have not checked which of those explains the gap, so this one reading does not show threads helping the live page.
 
 ## Not measured
 

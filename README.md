@@ -2,7 +2,7 @@
 
 A gravity N-body simulation that runs in the browser. The physics is written in C++ and compiled to WebAssembly, and three.js draws the bodies.
 
-This is a work in progress. The physics core has brute force gravity with softening, a Barnes-Hut octree for large scenes, a leapfrog integrator, and energy and momentum checks, with 43 tests. In the browser you can pick one of five scenes, change the speed, the tree accuracy and the number of stars, click to drop in a new body, and watch a live energy drift readout. There is no live demo yet.
+This is a work in progress. The physics core has brute force gravity with softening, a Barnes-Hut octree for large scenes, a leapfrog integrator, and energy and momentum checks, with 44 tests. The browser build uses SIMD and splits the tree walk across threads when the page allows it. In the browser you can pick one of five scenes, change the speed, the tree accuracy and the number of stars, click to drop in a new body, and watch a live energy drift readout. There is no live demo yet.
 
 ## Numbers so far
 
@@ -20,6 +20,8 @@ Barnes-Hut against brute force, one force pass on one thread, theta 0.5, bodies 
 The tree pulls ahead somewhere between 3000 and 10,000 bodies. Brute force here is the SIMD version, which does 4 bodies per instruction. Other values of theta, a clustered scene and the worst-body errors are in [results/benchmarks.md](results/benchmarks.md).
 
 In the browser (Chrome 155 on the same Intel Mac), a disk of 2000 stars runs at 60 fps, the screen's limit, with 120 physics steps a second at a median 3.42 ms each, using Barnes-Hut at theta 0.7. Details in [results/browser.md](results/browser.md).
+
+SIMD makes brute force 2.44x faster in Chrome (18.71 to 7.66 ms per step at 2001 bodies), and 4 threads make the tree 3.26x faster on a 10,000 star disk (24.55 to 7.54 ms per step). SIMD does nothing for the tree walk. Details in [results/speedups.md](results/speedups.md).
 
 Each scene's timestep and softening were picked by running it natively and watching the energy. Over the runs in [results/presets.md](results/presets.md) the worst energy drift was:
 

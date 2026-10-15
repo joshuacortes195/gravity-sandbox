@@ -257,9 +257,9 @@ TEST_CASE("a body does not count itself when cube edges round off") {
 }
 
 TEST_CASE("splitting the tree walk across threads gives the exact same pull as one thread") {
-  // a few bodies (fewer than threads) and a lot, spread out and clumped up
+  // fewer bodies than threads, a few blocks of 64 with a ragged end, and a lot, spread out and clumped up
   for (bool clumpy : {false, true}) {
-    for (int n : {3, 1001}) {
+    for (int n : {3, 3 * 64 + 5, 1001}) {
       Bodies one = clumpy ? clustered_ball(n, 11) : uniform_ball(n, 11);
       Octree tree;
       set_threads(1);
@@ -267,17 +267,21 @@ TEST_CASE("splitting the tree walk across threads gives the exact same pull as o
 
       // each body walks the tree on its own in the same order, so every bit should match
       for (int k : {2, 3, 4}) {
-        // starts from garbage, so a body no thread got to cannot pass with the old answer
-        Bodies many = one;
-        for (auto* a : {&many.ax, &many.ay, &many.az}) a->assign(a->size(), std::nanf(""));
         set_threads(k);
-        compute_accel_tree(many, tree, 0.01f, 0.7f);
-        CAPTURE(clumpy);
-        CAPTURE(n);
-        CAPTURE(k);
-        CHECK(many.ax == one.ax);
-        CHECK(many.ay == one.ay);
-        CHECK(many.az == one.az);
+        // many rounds on the same helpers, so one that misses a later round gets caught
+        for (int round = 0; round < 20; ++round) {
+          // starts from garbage, so a body no thread got to cannot pass with the old answer
+          Bodies many = one;
+          for (auto* a : {&many.ax, &many.ay, &many.az}) a->assign(a->size(), std::nanf(""));
+          compute_accel_tree(many, tree, 0.01f, 0.7f);
+          CAPTURE(clumpy);
+          CAPTURE(n);
+          CAPTURE(k);
+          CAPTURE(round);
+          CHECK(many.ax == one.ax);
+          CHECK(many.ay == one.ay);
+          CHECK(many.az == one.az);
+        }
       }
     }
   }

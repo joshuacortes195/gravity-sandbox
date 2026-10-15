@@ -117,15 +117,18 @@ Written test first.
 - Settled: the energy sum runs a few rows per frame on a frozen copy of the bodies. The step cap became a 12 ms time budget per frame, since a fixed step count does not fit a speed slider. A spawned body starts on a circular orbit around everything
 - Found while building it: the galaxy collision needs softening 0.05, not 0.01, or stars flung through the other galaxy's center wreck the energy (9% jump). The solar system's Jupiter had to move out to 3.0, because at 2.2 it pulled its neighbor 1.4% off its circle
 
-### Phase 5: performance
+### Phase 5: performance (done)
 
 - WASM SIMD build
 - pthreads build, with COOP and COEP headers in `netlify.toml`
-- Fall back to the plain build when the page is not cross-origin isolated
+- Fall back to the single thread SIMD build when the page is not cross-origin isolated
 - Measure each build against the plain one at the same N, timestep and theta
 - Open questions: confirm WebGL accepts views into shared memory in every browser I support, Safari included. The main thread is not allowed to block, so the worker threads have to be created up front
 - SIMD should help the brute force loop most. I expect less from it in the tree walk, and will report whatever I measure
 - Done when: the speedups are in `results/` with the browser and version they were measured in
+- Result: in Chrome 155, SIMD makes brute force 2.44x faster and leaves the tree walk unchanged, and 4 threads make the tree 3.26x faster at 10,000 bodies (2.09x to 2.72x near 2000). Numbers in `results/speedups.md`
+- Found while building it: SIMD did nothing at first. The compiler would not reorder the brute force sum, and a one line pragma fixed that. Native brute force got about 2.2x faster too, so I reran the Barnes-Hut benchmark and the tree's lead shrank
+- Still open: Safari, Firefox and phones are not measured, and I have not confirmed WebGL draws from views into shared memory in Safari. One reading of the live page showed no clear gain from threads, which I have not explained yet
 
 ### Phase 6: polish and ship
 
