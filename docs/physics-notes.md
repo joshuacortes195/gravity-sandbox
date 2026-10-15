@@ -283,7 +283,7 @@ My first measurement showed SIMD doing nothing, even for brute force (18.61 ms a
 What I measured in Chrome on my laptop (full table in `results/speedups.md`):
 
 - SIMD: brute force at 2001 bodies went from 18.71 to 7.66 ms per step (2.44x). The tree scenes did not change (0.98x to 1.03x)
-- Threads: the 10,000 star disk went from 24.55 ms on one thread to 12.57 ms on 2 (1.95x) and 7.54 ms on 4 (3.26x). The scenes near 2000 bodies gain less, 2.09x to 2.72x on 4 threads. That is Amdahl's law: the part you did not split sets the limit. Here the unsplit part is the tree build, the leapfrog update and the fixed cost of waking the helpers and waiting for them every step. The build alone is only about 3% of a pass, so it is not the main cause. I did not measure the split between the other two
+- Threads: the 10,000 star disk went from 24.55 ms on one thread to 12.57 ms on 2 (1.95x) and 7.54 ms on 4 (3.26x). The scenes of 1000 to 2000 bodies gain less, 2.09x to 2.72x on 4 threads. That is Amdahl's law: the part you did not split sets the limit. Here the unsplit part is the tree build, the leapfrog update and the fixed cost of waking the helpers and waiting for them every step. The build alone is only about 3% of a pass, so it is not the main cause. I did not measure the split between the other two
 
 Questions I should be able to answer:
 

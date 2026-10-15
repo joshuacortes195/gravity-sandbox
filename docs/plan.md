@@ -126,7 +126,7 @@ Written test first.
 - Open questions: confirm WebGL accepts views into shared memory in every browser I support, Safari included. The main thread is not allowed to block, so the worker threads have to be created up front
 - SIMD should help the brute force loop most. I expect less from it in the tree walk, and will report whatever I measure
 - Done when: the speedups are in `results/` with the browser and version they were measured in
-- Result: in Chrome 155, SIMD makes brute force 2.44x faster and leaves the tree walk unchanged, and 4 threads make the tree 3.26x faster at 10,000 bodies (2.09x to 2.72x near 2000). Numbers in `results/speedups.md`
+- Result: in Chrome 155, SIMD makes brute force 2.44x faster and leaves the tree walk unchanged, and 4 threads make the tree 3.26x faster at 10,000 bodies (2.09x to 2.72x on the scenes of 1000 to 2000 bodies). Numbers in `results/speedups.md`
 - Found while building it: SIMD did nothing at first. The compiler would not reorder the brute force sum, and a one line pragma fixed that. Native brute force got about 2.2x faster too, so I reran the Barnes-Hut benchmark and the tree's lead shrank
 - Still open: Safari, Firefox and phones are not measured, and I have not confirmed WebGL draws from views into shared memory in Safari. One reading of the live page showed no clear gain from threads, which I have not explained yet
 

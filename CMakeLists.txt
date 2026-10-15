@@ -81,7 +81,7 @@ if(EMSCRIPTEN)
 
   target_link_options(sim PRIVATE -sENVIRONMENT=web)
   target_link_options(sim-simd PRIVATE -sENVIRONMENT=web)
-  # the threaded build starts one worker per logical core while it loads, so a thread never has to
+  # the threaded build starts one worker per core the browser reports (navigator.hardwareConcurrency) while it loads, so a thread never has to
   # wait for a worker mid step (the page's main thread is not allowed to sit and wait for one).
   # strict means asking for more threads than that fails loudly instead of hanging
   target_link_options(sim-mt PRIVATE -sENVIRONMENT=web,worker
