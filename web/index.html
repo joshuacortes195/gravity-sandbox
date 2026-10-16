@@ -14,19 +14,34 @@
         padding: 10px; border-radius: 8px; background: rgba(10, 14, 22, 0.8);
         font: 12px/1.4 ui-monospace, Menlo, monospace; color: #9ab;
         display: flex; flex-direction: column; gap: 8px;
+        /* scrolls instead of running off the bottom on short screens */
+        max-height: calc(100vh - 36px); overflow-y: auto;
       }
+      /* styling for the title row: name on the left, code link and hide button on the right */
+      .panel header { display: flex; align-items: center; gap: 8px; }
+      .panel h1 { flex: 1; margin: 0; font-size: 13px; font-weight: 600; color: #cde; }
+      .panel a { color: #8ab4f8; }
+      .panel header button { cursor: pointer; }
       /* styling for labels with a control under them */
       .panel label { display: flex; flex-direction: column; gap: 2px; }
       .panel select, .panel button { font: inherit; color: #cde; background: #1a2230; border: 1px solid #2c3a4f; border-radius: 4px; padding: 3px 6px; }
+      /* sliders tinted to match the panel instead of the browser's default blue */
+      .panel input[type='range'] { accent-color: #5b7fb8; margin: 2px 0 0; }
       .panel .buttons { display: flex; gap: 6px; }
       .panel .buttons button { flex: 1; cursor: pointer; }
       /* styling for the live numbers, name on the left and value on the right */
       .readouts { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; margin: 0; }
       .readouts dd { margin: 0; text-align: right; color: #cde; }
       .hint { margin: 0; color: #678; }
+      /* styling for the loading message in the middle of the screen */
+      #status {
+        position: fixed; inset: 0; display: grid; place-items: center;
+        font: 13px ui-monospace, Menlo, monospace; color: #678;
+      }
     </style>
   </head>
   <body>
+    <div id="status">loading the physics</div>
     <div id="panel"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

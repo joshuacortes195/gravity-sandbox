@@ -23,3 +23,13 @@ export const PRESETS: Preset[] = [
 // the scene that loads first, and the tree accuracy the page starts with
 export const START_PRESET = 2;
 export const START_THETA = 0.7;
+
+// true on phones and tablets, anything where the main pointer is a finger
+export const TOUCH = matchMedia('(pointer: coarse)').matches;
+
+// starting body count for a scene, halved on touch devices since phones have far less to spend on physics
+export function defaultN(preset: number) {
+  const n = PRESETS[preset].n;
+  if (n === null) return 0;
+  return TOUCH ? Math.max(100, Math.round(n / 200) * 100) : n;
+}

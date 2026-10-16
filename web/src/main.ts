@@ -2,10 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import createSimd from './wasm/sim-simd.js';
-import createMt from './wasm/sim-mt.js';
+import type { Sim } from './wasm/sim';
 import { Panel, type Actions } from './Panel';
-import { PRESETS, START_PRESET, START_THETA } from './presets';
+import { PRESETS, START_PRESET, START_THETA, defaultN } from './presets';
 import { setReadout } from './store';
 
 // physics steps per real second at 1x speed, and the most time one frame may spend on physics
@@ -17,10 +16,32 @@ const PHYSICS_BUDGET_MS = 12;
 const ENERGY_PAIRS_PER_FRAME = 300_000;
 const ENERGY_EVERY_MS = 1000;
 
+// a tiny wasm module that uses one simd instruction, the browser only accepts it if it supports simd
+const SIMD_PROBE = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]);
+const SIMD = WebAssembly.validate(SIMD_PROBE);
+
 // threads need shared memory, which the browser only allows on a cross-origin isolated page
-// anywhere else the single thread simd build runs instead
-const THREADS = crossOriginIsolated ? navigator.hardwareConcurrency : 1;
-const sim = crossOriginIsolated ? await createMt() : await createSimd();
+// anywhere else the single thread simd build runs, or the plain build if simd is missing too
+const THREADS = crossOriginIsolated && SIMD ? navigator.hardwareConcurrency : 1;
+const BUILD = THREADS > 1 ? 'simd + threads' : SIMD ? 'simd' : 'plain';
+
+// only downloads the one build this browser will run
+async function loadSim(): Promise<Sim> {
+  if (BUILD === 'simd + threads') return (await import('./wasm/sim-mt.js')).default();
+  if (BUILD === 'simd') return (await import('./wasm/sim-simd.js')).default();
+  return (await import('./wasm/sim.js')).default();
+}
+
+// the loading message stays up until the physics is ready, and says so if it never gets there
+const status = document.getElementById('status')!;
+let sim: Sim;
+try {
+  sim = await loadSim();
+} catch (err) {
+  status.textContent = 'the physics failed to load in this browser';
+  throw err;
+}
+status.remove();
 sim._threads(THREADS);
 
 // renderer, scene and a camera looking down at the disk from an angle
@@ -136,7 +157,9 @@ function load(which: number, n: number) {
   sim._load_scene(which, n, 1, preset.eps, theta);
   attachViews();
   material.uniforms.size.value = preset.dot * window.devicePixelRatio;
-  camera.position.set(0, -0.8 * preset.camera, 0.6 * preset.camera);
+  // tall narrow screens see less side to side, so the camera backs off until the scene fits across
+  const back = preset.camera * Math.max(1, 1 / camera.aspect);
+  camera.position.set(0, -0.8 * back, 0.6 * back);
   controls.target.set(0, 0, 0);
   simTime = 0;
   resetBaseline();
@@ -149,7 +172,7 @@ const actions: Actions = {
   setSpeed: (s) => (speed = s),
   setTheta: (t) => (theta = t),
 };
-load(START_PRESET, PRESETS[START_PRESET].n ?? 0);
+load(START_PRESET, defaultN(START_PRESET));
 createRoot(document.getElementById('panel')!).render(createElement(Panel, { actions }));
 
 // keeps the picture the right shape when the window changes size
@@ -258,6 +281,7 @@ function frame(now: number) {
       simTime,
       drift,
       threads: THREADS,
+      build: BUILD,
     });
     frames = 0;
     stepsDone = 0;
