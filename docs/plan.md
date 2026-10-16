@@ -130,12 +130,27 @@ Written test first.
 - Found while building it: SIMD did nothing at first. The compiler would not reorder the brute force sum, and a one line pragma fixed that. Native brute force got about 2.2x faster too, so I reran the Barnes-Hut benchmark and the tree's lead shrank
 - Still open: Safari, Firefox and phones are not measured, and I have not confirmed WebGL draws from views into shared memory in Safari. One reading of the live page showed no clear gain from threads, which I have not explained yet
 
-### Phase 6: polish and ship
+### Phase 6: polish and ship (in progress)
 
-- UI pass
+- UI pass (first round done)
 - README with gifs and the numbers table
 - Netlify deploy
 - Final project write-up
+- Done so far (commit 7348757):
+  - the page downloads only the wasm build it will run: threads when cross-origin isolated, otherwise simd, otherwise the plain build if the browser has no simd
+  - a loading message, and an error message if the physics fails to load
+  - panel header with the title, a link to the code and a hide button. Space pauses. The panel scrolls on short screens
+  - phones (coarse pointer) start with the panel folded and half the default stars, as the devices decision says
+  - the camera backs off on tall narrow screens so the whole scene fits across
+  - checked in Chrome on Windows (16 threads, 180 Hz screen): galaxy collision at 1x to 4x runs at 90 to 180 fps with no console errors, and the folded panel and phone width layout look right
+- Found while doing it: at 8x speed on the galaxy collision (2002 bodies, 16 threads) the page drops to about 12 fps. Most frames still take 11 ms, but about once a second one frame takes around 1 second, and only about 116 steps a second get done. At 4x there are no stalls. Not diagnosed yet. Physics only accounts for about 16% of the time, so the time goes somewhere else (maybe the threads spinning against each other with 16 of them, or the energy sum)
+- Next:
+  1. diagnose the 8x stall above
+  2. record gifs of the galaxy collision, the black hole and the disk. Plan: record the canvas in the page with `MediaRecorder` on `canvas.captureStream(30)`, then turn the webm into a small gif with ffmpeg
+  3. README: add the gifs, list the new panel features, keep the numbers tables
+  4. write-up in `docs/write-up.md`: what it is, the decisions table in short, the measured numbers, what went wrong and how it got fixed (Toomre clumps, galaxy softening, the SIMD pragma, the tree's lead shrinking)
+  5. Netlify deploy, then update the README with the live link
+- Building on Windows: MSVC rejects `-Wextra`, so build the native code in WSL (Ubuntu with `g++`, `cmake` and `make`) or on the Mac. gcc warns that it ignores `#pragma clang loop`, which is expected. All 44 tests pass with g++ 15
 
 ## Known risks
 

@@ -37,7 +37,9 @@ Each scene's timestep and softening were picked by running it natively and watch
 
 - Simulates thousands of stars, planets and black holes pulling on each other
 - Comes with five scenes: a mini solar system, the figure-eight three-body orbit, a galaxy collision, a black hole tearing apart a star cluster, and a single disk galaxy
-- Has a control panel for pause, speed, tree accuracy (theta) and the number of stars
+- Has a control panel for pause, speed, tree accuracy (theta) and the number of stars. Space pauses, and the panel folds away
+- Picks the fastest build the browser allows (threads, then SIMD, then plain) and only downloads that one
+- Works on phones with touch controls, fewer stars and the panel folded up to start
 - Lets you click anywhere to drop in a new body on a circular orbit
 - Shows a live energy drift readout so you can see how accurate the simulation is while it runs
 
@@ -45,7 +47,7 @@ The full plan is in [docs/plan.md](docs/plan.md). My notes on the physics are in
 
 ## Build and test
 
-You need CMake 3.20 or newer and a C++17 compiler.
+You need CMake 3.20 or newer and a C++17 compiler (clang or gcc). On Windows, build in WSL, since MSVC does not take the `-Wextra` flag.
 
 ```bash
 cmake -S . -B build
