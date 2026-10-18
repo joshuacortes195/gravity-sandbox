@@ -143,9 +143,10 @@ Written test first.
   - phones (coarse pointer) start with the panel folded and half the default stars, as the devices decision says
   - the camera backs off on tall narrow screens so the whole scene fits across
   - checked in Chrome on Windows (16 threads, 180 Hz screen): galaxy collision at 1x to 4x runs at 90 to 180 fps with no console errors, and the folded panel and phone width layout look right
-- Found while doing it: at 8x speed on the galaxy collision (2002 bodies, 16 threads) the page drops to about 12 fps. Most frames still take 11 ms, but about once a second one frame takes around 1 second, and only about 116 steps a second get done. At 4x there are no stalls. Not diagnosed yet. Physics only accounts for about 16% of the time, so the time goes somewhere else (maybe the threads spinning against each other with 16 of them, or the energy sum)
+- Found while doing it: at 8x speed on the galaxy collision (2002 bodies, 16 threads) the page dropped to about 12 fps, with most frames taking 11 ms and about one a second taking around 1 second
+- Settled: that stall was Chrome, not the sim. Chrome slows animation frames to about one a second in a window that is not in front, and the first reading was most likely taken in one, since it shows the same pattern. Checked in a background window: frames came about 1005 ms apart at 1x, 4x, 8x and even paused, while timers in the same tab still fired about 100 times a second and each frame's own work took about 13 ms (12.7 ms physics, under 1 ms for the energy sum, 0.2 ms to draw). The same scene at 8x in a window in front runs at about 80 fps
 - Next:
-  1. diagnose the 8x stall above
+  1. ~~diagnose the 8x stall above~~ (settled above)
   2. record gifs of the galaxy collision, the black hole and the disk. Plan: record the canvas in the page with `MediaRecorder` on `canvas.captureStream(30)`, then turn the webm into a small gif with ffmpeg
   3. README: add the gifs, list the new panel features, keep the numbers tables
   4. write-up in `docs/write-up.md`: what it is, the decisions table in short, the measured numbers, what went wrong and how it got fixed (Toomre clumps, galaxy softening, the SIMD pragma, the tree's lead shrinking)
