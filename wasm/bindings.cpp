@@ -61,6 +61,11 @@ EMSCRIPTEN_KEEPALIVE float* pos_z() { return bodies.z.data(); }
 // masses too, so heavy bodies can be drawn bigger
 EMSCRIPTEN_KEEPALIVE float* mass() { return bodies.m.data(); }
 
+// velocities too, so the page can color each star by how fast it moves
+EMSCRIPTEN_KEEPALIVE float* vel_x() { return bodies.vx.data(); }
+EMSCRIPTEN_KEEPALIVE float* vel_y() { return bodies.vy.data(); }
+EMSCRIPTEN_KEEPALIVE float* vel_z() { return bodies.vz.data(); }
+
 // the total energy is an o(n^2) sum, too slow for one frame with thousands of bodies,
 // so it runs a few rows per frame on a frozen copy while the real sim keeps moving
 static Bodies frozen;

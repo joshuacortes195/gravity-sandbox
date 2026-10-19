@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { PRESETS, START_PRESET, START_THETA, TOUCH, defaultN } from './presets';
+import { PRESETS, START_EFFECTS, START_PRESET, START_THETA, TOUCH, defaultN } from './presets';
 import { getReadout, subscribe } from './store';
 
 // what the panel can ask the sim to do, handed in by main.ts
@@ -8,7 +8,18 @@ export interface Actions {
   setPaused(paused: boolean): void;
   setSpeed(speed: number): void;
   setTheta(theta: number): void;
+  setGlow(on: boolean): void;
+  setTrails(on: boolean): void;
+  setSpeedColors(on: boolean): void;
 }
+
+// the looks the panel can switch on and off, with the label each one shows
+const EFFECTS = [
+  { key: 'glow', label: 'glow' },
+  { key: 'trails', label: 'trails' },
+  { key: 'speedColors', label: 'color by speed' },
+] as const;
+type Effect = (typeof EFFECTS)[number]['key'];
 
 // the speed slider steps through these, as multiples of normal speed
 const SPEEDS = [0.25, 0.5, 1, 2, 4, 8];
@@ -50,7 +61,17 @@ export function Panel({ actions }: { actions: Actions }) {
   const [open, setOpen] = useState(!TOUCH);
   const [speedIndex, setSpeedIndex] = useState(2);
   const [theta, setTheta] = useState(START_THETA);
+  const [effects, setEffects] = useState(START_EFFECTS);
   const p = PRESETS[preset];
+
+  // flips one look on or off in both the panel and the renderer
+  function toggleEffect(key: Effect) {
+    const on = !effects[key];
+    setEffects({ ...effects, [key]: on });
+    if (key === 'glow') actions.setGlow(on);
+    else if (key === 'trails') actions.setTrails(on);
+    else actions.setSpeedColors(on);
+  }
 
   // flips pause in both the panel and the sim
   function togglePause() {
@@ -158,6 +179,16 @@ export function Panel({ actions }: { actions: Actions }) {
               <input type="range" min={100} max={p.nMax} step={100} value={n} onChange={(e) => pickN(Number(e.target.value))} />
             </label>
           ) : null}
+
+          {/* switches for the looks, none of them touch the physics */}
+          <div className="effects">
+            {EFFECTS.map((e) => (
+              <label key={e.key}>
+                <input type="checkbox" checked={effects[e.key]} onChange={() => toggleEffect(e.key)} />
+                {e.label}
+              </label>
+            ))}
+          </div>
 
           <Readouts />
           <p className="hint">

@@ -1,10 +1,15 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { AfterimagePass } from 'three/addons/postprocessing/AfterimagePass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Sim } from './wasm/sim';
 import { Panel, type Actions } from './Panel';
-import { PRESETS, START_PRESET, START_THETA, defaultN } from './presets';
+import { PRESETS, START_EFFECTS, START_PRESET, START_THETA, defaultN } from './presets';
 import { setReadout } from './store';
 
 // physics steps per real second at 1x speed, and the most time one frame may spend on physics
@@ -64,36 +69,58 @@ const material = new THREE.ShaderMaterial({
   uniforms: {
     size: { value: 1 },
     total: { value: 1 },
+    // a typical speed for the scene, a star moving at it draws white
+    typicalSpeed: { value: 1 },
+    // 1 colors stars by speed, 0 keeps them all one blue
+    speedColors: { value: START_EFFECTS.speedColors ? 1 : 0 },
     color: { value: new THREE.Color(0.55, 0.7, 1.0) },
+    slowColor: { value: new THREE.Color(1.0, 0.45, 0.2) },
+    midColor: { value: new THREE.Color(1.0, 0.92, 0.82) },
+    fastColor: { value: new THREE.Color(0.45, 0.65, 1.0) },
     heavyColor: { value: new THREE.Color(1.0, 0.85, 0.6) },
   },
   vertexShader: /* glsl */ `
     attribute float px;
     attribute float py;
     attribute float pz;
+    attribute float vx;
+    attribute float vy;
+    attribute float vz;
     attribute float m;
     uniform float size;
     uniform float total;
+    uniform float typicalSpeed;
     varying float heavy;
+    varying float fast;
     void main() {
       vec4 mv = modelViewMatrix * vec4(px, py, pz, 1.0);
       gl_Position = projectionMatrix * mv;
       // share of the total mass, cube rooted so a sun and a planet both stay visible
       heavy = pow(m / total, 1.0 / 3.0);
+      // how fast this star goes next to a typical one, 0 at half speed or slower, 0.5 at typical, 1 at double or faster
+      fast = clamp(0.5 + 0.5 * log2(length(vec3(vx, vy, vz)) / typicalSpeed), 0.0, 1.0);
       // heavier bodies draw bigger, farther ones smaller, never under a pixel and a half
-      gl_PointSize = max(1.5, size * (1.0 + 5.0 * heavy) / -mv.z);
+      gl_PointSize = max(1.5, size * (1.0 + 8.0 * heavy) / -mv.z);
     }
   `,
   fragmentShader: /* glsl */ `
     uniform vec3 color;
+    uniform vec3 slowColor;
+    uniform vec3 midColor;
+    uniform vec3 fastColor;
     uniform vec3 heavyColor;
+    uniform float speedColors;
     varying float heavy;
+    varying float fast;
     void main() {
       // soft round dot instead of a square
       float a = 1.0 - smoothstep(0.3, 0.5, length(gl_PointCoord - 0.5));
       if (a <= 0.0) discard;
-      // light stars blue, heavy bodies warm white
-      gl_FragColor = vec4(mix(color, heavyColor, clamp(heavy * 2.0, 0.0, 1.0)) * a, 1.0);
+      // slow stars orange, typical ones white, fast ones blue
+      vec3 bySpeed = fast < 0.5 ? mix(slowColor, midColor, fast * 2.0) : mix(midColor, fastColor, fast * 2.0 - 1.0);
+      vec3 star = mix(color, bySpeed, speedColors);
+      // heavy bodies warm white either way
+      gl_FragColor = vec4(mix(star, heavyColor, clamp(heavy * 2.0, 0.0, 1.0)) * a, 1.0);
     }
   `,
   // overlapping stars add up and glow
@@ -106,6 +133,37 @@ const points = new THREE.Points(geometry, material);
 points.frustumCulled = false;
 scene.add(points);
 
+// faint background stars, only for looks, they are not part of the sim and pull on nothing
+const SKY_STARS = 2500;
+const skyPositions = new Float32Array(SKY_STARS * 3);
+for (let i = 0; i < SKY_STARS; i++) {
+  // a random direction, spread evenly over a big sphere
+  const z = Math.random() * 2 - 1;
+  const angle = Math.random() * Math.PI * 2;
+  const r = Math.sqrt(1 - z * z);
+  skyPositions.set([100 * r * Math.cos(angle), 100 * r * Math.sin(angle), 100 * z], i * 3);
+}
+const skyGeometry = new THREE.BufferGeometry();
+skyGeometry.setAttribute('position', new THREE.BufferAttribute(skyPositions, 3));
+const sky = new THREE.Points(
+  skyGeometry,
+  // dim enough to stay under the glow threshold, a fixed size so zooming does not change them
+  new THREE.PointsMaterial({ color: new THREE.Color(0.35, 0.38, 0.45), size: window.devicePixelRatio, sizeAttenuation: false, depthWrite: false }),
+);
+scene.add(sky);
+
+// the effects run after the scene is drawn: trails first, so the streaks glow too, then the glow
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const trails = new AfterimagePass(0.9);
+trails.enabled = START_EFFECTS.trails;
+composer.addPass(trails);
+// strength, how far it spreads, and how bright a spot has to be before it glows
+const glow = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.8, 0.2, 0.3);
+glow.enabled = START_EFFECTS.glow;
+composer.addPass(glow);
+composer.addPass(new OutputPass());
+
 // points the three attributes straight at the x, y, z arrays inside wasm memory, no copy
 // has to run again whenever the body count changes, since the arrays may have moved
 function attachViews() {
@@ -116,12 +174,28 @@ function attachViews() {
   geometry.setAttribute('px', new THREE.BufferAttribute(new Float32Array(buffer, sim._pos_x(), n), 1));
   geometry.setAttribute('py', new THREE.BufferAttribute(new Float32Array(buffer, sim._pos_y(), n), 1));
   geometry.setAttribute('pz', new THREE.BufferAttribute(new Float32Array(buffer, sim._pos_z(), n), 1));
+  geometry.setAttribute('vx', new THREE.BufferAttribute(new Float32Array(buffer, sim._vel_x(), n), 1));
+  geometry.setAttribute('vy', new THREE.BufferAttribute(new Float32Array(buffer, sim._vel_y(), n), 1));
+  geometry.setAttribute('vz', new THREE.BufferAttribute(new Float32Array(buffer, sim._vel_z(), n), 1));
   const masses = new Float32Array(buffer, sim._mass(), n);
   geometry.setAttribute('m', new THREE.BufferAttribute(masses, 1));
   geometry.setDrawRange(0, n);
 
   // total mass, for sizing dots and for the speed of spawned bodies
   material.uniforms.total.value = masses.reduce((a, b) => a + b, 0);
+}
+
+// the root mean square speed of every body, the white point for the speed colors
+// only worked out when a scene loads, so a star's color means the same thing all run long
+function typicalSpeed() {
+  const n = sim._body_count();
+  const buffer = sim.HEAPF32.buffer;
+  const vx = new Float32Array(buffer, sim._vel_x(), n);
+  const vy = new Float32Array(buffer, sim._vel_y(), n);
+  const vz = new Float32Array(buffer, sim._vel_z(), n);
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += vx[i] * vx[i] + vy[i] * vy[i] + vz[i] * vz[i];
+  return Math.sqrt(sum / Math.max(1, n)) || 1;
 }
 
 // what the panel has picked, read by the loop every frame
@@ -156,6 +230,7 @@ function load(which: number, n: number) {
   preset = PRESETS[which];
   sim._load_scene(which, n, 1, preset.eps, theta);
   attachViews();
+  material.uniforms.typicalSpeed.value = typicalSpeed();
   material.uniforms.size.value = preset.dot * window.devicePixelRatio;
   // tall narrow screens see less side to side, so the camera backs off until the scene fits across
   const back = preset.camera * Math.max(1, 1 / camera.aspect);
@@ -171,6 +246,9 @@ const actions: Actions = {
   setPaused: (p) => (paused = p),
   setSpeed: (s) => (speed = s),
   setTheta: (t) => (theta = t),
+  setGlow: (on) => (glow.enabled = on),
+  setTrails: (on) => (trails.enabled = on),
+  setSpeedColors: (on) => (material.uniforms.speedColors.value = on ? 1 : 0),
 };
 load(START_PRESET, defaultN(START_PRESET));
 createRoot(document.getElementById('panel')!).render(createElement(Panel, { actions }));
@@ -180,6 +258,7 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 });
 
 // a click that did not turn into a drag drops a body where the pointer meets the flat z = 0 plane
@@ -249,7 +328,7 @@ function frame(now: number) {
     simTime += done * preset.dt;
 
     // tell three.js the positions changed so it sends them to the gpu again
-    for (const name of ['px', 'py', 'pz']) geometry.getAttribute(name).needsUpdate = true;
+    for (const name of ['px', 'py', 'pz', 'vx', 'vy', 'vz']) geometry.getAttribute(name).needsUpdate = true;
   }
 
   // a slice of the energy sum, sized so a big scene spreads it over more frames
@@ -267,7 +346,11 @@ function frame(now: number) {
   }
 
   controls.update();
-  renderer.render(scene, camera);
+  // the background stars ride along with the camera so they always look infinitely far away
+  sky.position.copy(camera.position);
+  // straight to the screen when every effect is off, through the effects otherwise
+  if (glow.enabled || trails.enabled) composer.render();
+  else renderer.render(scene, camera);
 
   // sends fresh numbers to the panel twice a second
   frames++;

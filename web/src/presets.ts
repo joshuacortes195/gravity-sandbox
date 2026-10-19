@@ -27,6 +27,10 @@ export const START_THETA = 0.7;
 // true on phones and tablets, anything where the main pointer is a finger
 export const TOUCH = matchMedia('(pointer: coarse)').matches;
 
+// which looks are on when the page opens, glow starts off on phones since it costs gpu time
+// trails start off because they smear the whole picture while the camera turns
+export const START_EFFECTS = { glow: !TOUCH, trails: false, speedColors: true };
+
 // starting body count for a scene, halved on touch devices since phones have far less to spend on physics
 export function defaultN(preset: number) {
   const n = PRESETS[preset].n;

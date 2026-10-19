@@ -11,6 +11,9 @@ export interface Sim {
   _pos_y(): number;
   _pos_z(): number;
   _mass(): number;
+  _vel_x(): number;
+  _vel_y(): number;
+  _vel_z(): number;
   _energy_begin(): void;
   _energy_work(rows: number, eps: number): number;
   _energy_value(): number;

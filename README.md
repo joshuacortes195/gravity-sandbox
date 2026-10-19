@@ -42,6 +42,7 @@ Each scene's timestep and softening were picked by running it natively and watch
 - Works on phones with touch controls, fewer stars and the panel folded up to start
 - Lets you click anywhere to drop in a new body on a circular orbit
 - Shows a live energy drift readout so you can see how accurate the simulation is while it runs
+- Colors each star by its speed (slow orange, typical white, fast blue), with an optional glow, motion trails and faint background stars. Each look can be switched off in the panel, and glow starts off on phones
 
 The full plan is in [docs/plan.md](docs/plan.md). My notes on the physics are in [docs/physics-notes.md](docs/physics-notes.md).
 
