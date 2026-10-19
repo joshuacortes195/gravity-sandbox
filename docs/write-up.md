@@ -4,7 +4,7 @@
 
 Gravity Sandbox is a gravity N-body simulation that runs in the browser. Thousands of stars, planets and black holes pull on each other, and you can watch two galaxies crash, a black hole tear a star cluster apart, or the three-body figure-eight orbit loop forever. The physics is C++ compiled to WebAssembly, and three.js draws it.
 
-I built it as a portfolio project, and I cared more about the physics being right and every number being measured than about a long feature list. Each phase ended with tests passing, and every number below comes from a file in `results/` that says what machine, settings and commit it was measured on.
+I built it as a portfolio project, and I cared more about the physics being right and every number being measured than about a long feature list. Each phase ended with tests passing, and every number below comes from a file in `results/` that says what machine, settings and commit it was measured on. A couple are readings I took off the page by eye, and the results files say so where they appear.
 
 ## What is in it
 
@@ -39,7 +39,7 @@ I made these before writing any physics code. The full table with reasons is in 
 
 ([benchmarks.md](../results/benchmarks.md))
 
-**SIMD helps brute force, threads help the tree.** In Chrome 155, SIMD makes brute force 2.44x faster (18.71 to 7.66 ms a step at 2001 bodies) and does nothing for the tree walk, which branches on every cube. 4 threads make the tree 3.26x faster on a 10,000 star disk (24.55 to 7.54 ms a step), and 2.09x to 2.72x on the scenes of 1000 to 2000 bodies. ([speedups.md](../results/speedups.md))
+**SIMD helps brute force, threads help the tree.** In Chrome 155 on the Mac, SIMD makes brute force 2.44x faster (18.71 to 7.66 ms a step at 2001 bodies) and does nothing for the tree walk, which branches on every cube. 4 threads make the tree 3.26x faster on a 10,000 star disk (24.55 to 7.54 ms a step), and 2.09x to 2.72x on the scenes of 1000 to 2000 bodies. On a 16 thread Windows desktop, 16 threads make the tree 3.00x to 5.08x faster than the plain build and beat 8 and 4 on every scene, so desktops use every core. ([speedups.md](../results/speedups.md))
 
 **Every scene keeps its energy.** Each scene's timestep and softening were picked by running it natively and watching the energy:
 
@@ -63,10 +63,12 @@ I made these before writing any physics code. The full table with reasons is in 
 
 **The tree's lead shrank.** That same pragma made native brute force about 2.2x faster too, so my Barnes-Hut benchmark was out of date. Before the fix the tree tied brute force at about 1000 bodies and was 10.69x faster at 30,000. Rerun against the faster brute force, it first wins between 3000 and 10,000 bodies and is 4.91x faster at 30,000. I kept the new numbers, since the old ones were measured against a slower baseline than the one that ships.
 
-**A stall at 8x speed that turned out to be Chrome.** At 8x the galaxy collision seemed to drop to about 12 fps, with a frame of around a second once a second. Timing each part of the frame showed the page's own work was only about 13 ms a frame. Paused, with no physics at all, frames still came about a second apart, while timers in the same tab ran 100 times a second. Chrome slows animation frames in a window that is not in front, and the first reading was most likely taken in one. In a window in front, the same scene at 8x runs at about 80 fps.
+**A stall at 8x speed that was most likely the browser.** At 8x the galaxy collision seemed to drop to about 12 fps, with a frame of around a second once a second. Timing each part of the frame showed the page's own work was only about 13 ms a frame and never anywhere near a second. In the window I tested in, frames came about a second apart even when paused, while timers in the same tab ran 100 times a second, because Chrome holds back animation frames in a window that is not in front. That window showed only long gaps, not the bursts of the first reading, so I can't prove it was the same thing. In a window in front the same scene at 8x held about 80 fps by eye. ([browser.md](../results/browser.md))
+
+**A color bug from the graphics pass.** When I added glow, the stars started going through three.js post-processing, which converts colors to the screen's color space at the end. With every effect off the stars skipped that step, so unticking glow made every star darker and more saturated, and phones (which start with glow off) saw different colors from desktops. The star shader now does the conversion itself, so the colors match either way.
 
 ## What is not done
 
 - Safari, Firefox and phones are not measured, and I have not checked that Safari draws from views into shared memory
-- One reading of the live page did not show threads helping (3.69 ms a step on 4 threads, close to the one thread time), even though the benchmark page does. I have not worked out why
+- On the Mac, one reading of the live page did not show threads helping (3.69 ms a step on 4 threads, close to the one thread time), even though the benchmark page does. On the Windows desktop they clearly help the live page, so I have not worked out what was different
 - 32-bit positions mean a slow body far from the origin can stop moving, because its step is smaller than the gap between floats there. The scenes stay near the origin to avoid it

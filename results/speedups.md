@@ -73,3 +73,77 @@ The main page in the same Chrome, cross-origin isolated, picked the threaded bui
 ## Not measured
 
 Safari, Firefox and phones. The page asks for the threaded build only when it is cross-origin isolated, so any browser that refuses shared memory gets the single thread SIMD build. I have not checked that Safari draws from views into shared memory.
+
+## Windows desktop, up to 16 threads
+
+The same benchmark page, on a second machine with more cores, to see whether the page should use every core or stop at 4.
+
+- Machine: AMD Ryzen 7 3700X, 8 physical / 16 logical cores, 16 GB RAM, NVIDIA GeForce RTX 3060, Windows 10 Home
+- Commit: 597f2a9, the live site (https://gravity-sandbox-teal.vercel.app/bench.html), cross-origin isolated
+- WASM: the same three builds and flags as above, rebuilt on Windows with emcc 6.0.12
+- Browser: Chrome 156, an automated window that was not in front. The benchmark times its steps with timers, not animation frames, so the frame slowdown Chrome puts on a background window (see [browser.md](browser.md)) does not apply to it
+- `navigator.hardwareConcurrency` reported 16, so the threaded build was tried at 1, 2, 4, 8 and 16 threads
+- Each number is the median of 3 page loads, the range is the lowest and highest. The third load was slower on every row, by up to about 1.8x, while the machine was short on memory. It moves the highest values, not the medians
+
+| Scene | Bodies | plain | simd | mt, 4 threads | mt, 8 threads | mt, 16 threads |
+| --- | --- | --- | --- | --- | --- | --- |
+| disk, tree | 2001 | 2.82 ms | 3.16 ms (0.89x) | 1.23 ms (2.29x) | 0.99 ms (2.85x) | 0.94 ms (3.00x) |
+| disk, tree | 10001 | 19.37 ms | 19.62 ms (0.99x) | 6.98 ms (2.78x) | 4.78 ms (4.05x) | 4.03 ms (4.81x) |
+| galaxy collision, tree | 2002 | 3.67 ms | 3.96 ms (0.93x) | 1.73 ms (2.12x) | 1.18 ms (3.11x) | 0.98 ms (3.74x) |
+| black hole and cluster, tree | 1001 | 3.15 ms | 3.10 ms (1.02x) | 1.08 ms (2.92x) | 0.65 ms (4.85x) | 0.62 ms (5.08x) |
+| disk, brute force | 2001 | 14.11 ms | 5.50 ms (2.57x) | not threaded | not threaded | not threaded |
+
+What I take from it:
+
+- 16 threads is the fastest on every scene, so the page keeps using every core it is given on desktops. Past 8 the gain is small (5% to 19%), since 8 of the 16 are the second hardware thread on a core that is already busy
+- SIMD again speeds up brute force (2.57x) and does nothing for the tree, the same as on the Mac
+- The threaded build on 1 thread: disk 2001 2.91 ms, disk 10001 19.63 ms, collision 3.88 ms, cluster 3.04 ms
+
+### Every run
+
+ms per step, runs 1 / 2 / 3. Plain and simd are 1 thread.
+
+| Build | Threads | Scene | Bodies | Run 1 | Run 2 | Run 3 |
+| --- | --- | --- | --- | --- | --- | --- |
+| plain | 1 | disk, tree | 2001 | 2.95 | 2.77 | 2.82 |
+| plain | 1 | disk, tree | 10001 | 19.73 | 19.37 | 18.14 |
+| plain | 1 | collision, tree | 2002 | 3.67 | 3.68 | 3.62 |
+| plain | 1 | cluster, tree | 1001 | 2.98 | 3.15 | 3.49 |
+| plain | 1 | disk, brute force | 2001 | 14.10 | 14.11 | 16.74 |
+| simd | 1 | disk, tree | 2001 | 3.16 | 2.93 | 3.36 |
+| simd | 1 | disk, tree | 10001 | 19.62 | 19.34 | 22.41 |
+| simd | 1 | collision, tree | 2002 | 3.73 | 3.96 | 4.48 |
+| simd | 1 | cluster, tree | 1001 | 2.84 | 3.10 | 3.69 |
+| simd | 1 | disk, brute force | 2001 | 5.24 | 5.50 | 7.64 |
+| mt | 1 | disk, tree | 2001 | 2.86 | 2.91 | 4.03 |
+| mt | 2 | disk, tree | 2001 | 1.66 | 1.64 | 2.56 |
+| mt | 4 | disk, tree | 2001 | 1.23 | 1.21 | 1.66 |
+| mt | 8 | disk, tree | 2001 | 0.97 | 0.99 | 1.76 |
+| mt | 16 | disk, tree | 2001 | 0.87 | 0.94 | 1.14 |
+| mt | 1 | disk, tree | 10001 | 19.63 | 19.25 | 25.57 |
+| mt | 2 | disk, tree | 10001 | 9.52 | 11.26 | 15.97 |
+| mt | 4 | disk, tree | 10001 | 6.48 | 6.98 | 10.31 |
+| mt | 8 | disk, tree | 10001 | 4.77 | 4.78 | 7.20 |
+| mt | 16 | disk, tree | 10001 | 4.00 | 4.03 | 7.10 |
+| mt | 1 | collision, tree | 2002 | 3.88 | 3.87 | 5.68 |
+| mt | 2 | collision, tree | 2002 | 2.03 | 2.00 | 2.99 |
+| mt | 4 | collision, tree | 2002 | 1.44 | 1.73 | 2.16 |
+| mt | 8 | collision, tree | 2002 | 1.18 | 1.03 | 1.74 |
+| mt | 16 | collision, tree | 2002 | 0.98 | 0.93 | 1.75 |
+| mt | 1 | cluster, tree | 1001 | 3.04 | 2.86 | 5.24 |
+| mt | 2 | cluster, tree | 1001 | 1.62 | 1.49 | 2.74 |
+| mt | 4 | cluster, tree | 1001 | 1.08 | 0.96 | 1.70 |
+| mt | 8 | cluster, tree | 1001 | 0.65 | 0.60 | 1.36 |
+| mt | 16 | cluster, tree | 1001 | 0.62 | 0.55 | 1.38 |
+| mt | 1 | disk, brute force | 2001 | 5.39 | 5.19 | 8.05 |
+
+### Threads on the live page
+
+The main page on the same machine, galaxy collision at 1x and theta 0.7, read from the panel about a second after load. Single readings, not medians.
+
+| Where | Commit | Build | Threads | ms/step | steps/s |
+| --- | --- | --- | --- | --- | --- |
+| live site | 597f2a9 | simd + threads | 16 | 0.89 | 119 |
+| `vite preview` of the production build | the review fixes, before they were committed | simd + threads | 16 | 1.31 | 119 |
+
+Both are close to the benchmark's 0.98 ms on 16 threads and far under its 3.67 ms plain, so on this machine threads do help the live page. The Mac reading above, where they seemed not to, is still not explained.

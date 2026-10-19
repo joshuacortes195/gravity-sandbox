@@ -70,3 +70,28 @@ Disk galaxy with the theta and star sliders moved:
 At theta 0 the tree opens every cube, which is brute force with extra bookkeeping. One step at 10,000 stars took 4.5 seconds and froze the page, because the frame budget always lets at least one step run. So the slider now stops at 0.2. Exact forces are still checked natively in the tests.
 
 At 8x speed the galaxy collision ran 120 to 180 steps a second at 59 to 60 fps, barely faster than 1x. At about 4.9 ms a step only two or three steps fit in the 12 ms budget, so the budget, not the slider, sets the pace. The solar system at 8x does reach 960 steps a second.
+
+## Windows: the 8x speed stall
+
+An earlier reading on the Windows machine (AMD Ryzen 7 3700X, 16 threads, 180 Hz screen, Chrome) had the galaxy collision at 8x drop to about 12 fps, with most frames around 11 ms and about one frame a second taking around 1 second. I tried to find where that second went.
+
+- Commit: 51b49eb, dev server, with temporary timing around each part of the frame (taken out again before committing)
+- Browser: Chrome 156, an automated window that was not in front
+- Scene: galaxy collision, 2002 bodies, theta 0.7, 16 threads
+
+What the timing showed, over about 8 seconds at each setting:
+
+| Setting | Time between frames | Work inside one frame | Physics | Energy sum | Drawing |
+| --- | --- | --- | --- | --- | --- |
+| 8x | about 1005 ms | 13 to 14 ms | 12 to 13 ms (8 to 14 steps) | 0 to 1 ms | 0.2 ms |
+| 4x, 1x, a fresh load at 1x | about 1005 ms | about 13 ms | about 12.7 ms | under 1 ms | 0.2 ms |
+| paused | about 1000 ms | | none | | |
+
+In the same tab a plain `setInterval` fired about 100 times a second while `requestAnimationFrame` fired about 1.3 times a second, with the page doing nothing else. So in that window Chrome was holding animation frames to about one a second no matter what the page did, and the page's own work per frame was small.
+
+That does not match the first reading exactly. The first one had bursts of fast frames with a long gap each second, and this window had only long gaps. So I can't say for sure the first reading was this throttling. What I can say:
+
+- in a window in front, the same scene at 8x on the same machine held about 80 fps. That was a reading off the panel by eye, not a recorded run
+- every frame I timed spent at most about 14 ms on its own work, and none spent a second
+
+I'm treating the stall as a browser window effect unless it shows up again in a window in front.

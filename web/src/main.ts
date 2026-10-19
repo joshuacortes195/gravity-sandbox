@@ -9,7 +9,7 @@ import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Sim } from './wasm/sim';
 import { Panel, type Actions } from './Panel';
-import { PRESETS, START_EFFECTS, START_PRESET, START_THETA, defaultN } from './presets';
+import { PRESETS, START_EFFECTS, START_PRESET, START_THETA, TOUCH, defaultN } from './presets';
 import { setReadout } from './store';
 
 // physics steps per real second at 1x speed, and the most time one frame may spend on physics
@@ -21,47 +21,92 @@ const PHYSICS_BUDGET_MS = 12;
 const ENERGY_PAIRS_PER_FRAME = 300_000;
 const ENERGY_EVERY_MS = 1000;
 
+// how much of a trail is left after one sixtieth of a second, the per frame amount is worked out from this
+const TRAIL_KEEP_PER_60TH = 0.9;
+
 // a tiny wasm module that uses one simd instruction, the browser only accepts it if it supports simd
 const SIMD_PROBE = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]);
 const SIMD = WebAssembly.validate(SIMD_PROBE);
 
 // threads need shared memory, which the browser only allows on a cross-origin isolated page
-// anywhere else the single thread simd build runs, or the plain build if simd is missing too
-const THREADS = crossOriginIsolated && SIMD ? navigator.hardwareConcurrency : 1;
-const BUILD = THREADS > 1 ? 'simd + threads' : SIMD ? 'simd' : 'plain';
+// desktops use every core, on a 16 thread ryzen 16 beat 8 and 4 on every scene (results/speedups.md)
+// phones get one thread, as the devices decision in the plan says
+const WANT_THREADS = crossOriginIsolated && SIMD && !TOUCH ? navigator.hardwareConcurrency : 1;
 
-// only downloads the one build this browser will run
-async function loadSim(): Promise<Sim> {
-  if (BUILD === 'simd + threads') return (await import('./wasm/sim-mt.js')).default();
-  if (BUILD === 'simd') return (await import('./wasm/sim-simd.js')).default();
-  return (await import('./wasm/sim.js')).default();
+// gives up on a load that never finishes, so a stuck threaded build still falls back to the next one
+function withTimeout<T>(p: Promise<T>, ms: number) {
+  return Promise.race([p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`no answer after ${ms} ms`)), ms))]);
+}
+
+// tries the best build this browser could run first, and only downloads the next one if that fails
+async function loadSim() {
+  const tries: { build: string; threads: number; load: () => Promise<Sim> }[] = [];
+  if (WANT_THREADS > 1) tries.push({ build: 'simd + threads', threads: WANT_THREADS, load: async () => withTimeout((await import('./wasm/sim-mt.js')).default(), 20_000) });
+  if (SIMD) tries.push({ build: 'simd', threads: 1, load: async () => (await import('./wasm/sim-simd.js')).default() });
+  tries.push({ build: 'plain', threads: 1, load: async () => (await import('./wasm/sim.js')).default() });
+
+  let lastError: unknown;
+  for (const t of tries) {
+    try {
+      return { sim: await t.load(), build: t.build, threads: t.threads };
+    } catch (err) {
+      lastError = err;
+      console.warn(`the ${t.build} build failed to load, trying the next one`, err);
+    }
+  }
+  throw lastError;
+}
+
+// the message in the middle of the screen, used while loading and when something breaks
+const status = document.getElementById('status')!;
+function showStatus(text: string) {
+  status.textContent = text;
+  if (!status.isConnected) document.body.appendChild(status);
 }
 
 // the loading message stays up until the physics is ready, and says so if it never gets there
-const status = document.getElementById('status')!;
-let sim: Sim;
+let loaded: Awaited<ReturnType<typeof loadSim>>;
 try {
-  sim = await loadSim();
+  loaded = await loadSim();
 } catch (err) {
-  status.textContent = 'the physics failed to load in this browser';
+  showStatus('the physics failed to load in this browser');
   throw err;
 }
-status.remove();
+const { sim, build: BUILD, threads: THREADS } = loaded;
 sim._threads(THREADS);
 
+// the screen's pixel density, capped at 2 since a 3x phone screen would draw 9 times the pixels for little gain
+const pixelRatio = () => Math.min(window.devicePixelRatio, 2);
+
 // renderer, scene and a camera looking down at the disk from an angle
-const renderer = new THREE.WebGLRenderer({ antialias: false });
-renderer.setPixelRatio(window.devicePixelRatio);
+let renderer: THREE.WebGLRenderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: false });
+} catch (err) {
+  showStatus('this browser could not start webgl, which the drawing needs');
+  throw err;
+}
+renderer.setPixelRatio(pixelRatio());
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
+status.remove();
+
+// the browser can take the gpu away (driver reset, too many tabs), say so instead of leaving a black screen
+renderer.domElement.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  showStatus('the graphics card dropped the drawing, reload the page to bring it back');
+});
+renderer.domElement.addEventListener('webglcontextrestored', () => status.remove());
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 200);
 camera.up.set(0, 0, 1);
 
 // drag to orbit, scroll or pinch to zoom, works with mouse and touch
+// zooming stops well before the far end of the camera's view, so the scene never gets cut off
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
+controls.maxDistance = 60;
 
 // one point per body, the shader builds each position from the three separate x, y, z arrays
 const geometry = new THREE.BufferGeometry();
@@ -73,6 +118,8 @@ const material = new THREE.ShaderMaterial({
     typicalSpeed: { value: 1 },
     // 1 colors stars by speed, 0 keeps them all one blue
     speedColors: { value: START_EFFECTS.speedColors ? 1 : 0 },
+    // 1 tints heavy bodies warm, 0 for scenes where every body weighs the same and none stands out
+    heavyTint: { value: 1 },
     color: { value: new THREE.Color(0.55, 0.7, 1.0) },
     slowColor: { value: new THREE.Color(1.0, 0.45, 0.2) },
     midColor: { value: new THREE.Color(1.0, 0.92, 0.82) },
@@ -98,7 +145,9 @@ const material = new THREE.ShaderMaterial({
       // share of the total mass, cube rooted so a sun and a planet both stay visible
       heavy = pow(m / total, 1.0 / 3.0);
       // how fast this star goes next to a typical one, 0 at half speed or slower, 0.5 at typical, 1 at double or faster
-      fast = clamp(0.5 + 0.5 * log2(length(vec3(vx, vy, vz)) / typicalSpeed), 0.0, 1.0);
+      // the floor keeps log2 away from 0 for a body dropped in at rest
+      float speed = max(length(vec3(vx, vy, vz)), 1e-6);
+      fast = clamp(0.5 + 0.5 * log2(speed / typicalSpeed), 0.0, 1.0);
       // heavier bodies draw bigger, farther ones smaller, never under a pixel and a half
       gl_PointSize = max(1.5, size * (1.0 + 8.0 * heavy) / -mv.z);
     }
@@ -110,6 +159,7 @@ const material = new THREE.ShaderMaterial({
     uniform vec3 fastColor;
     uniform vec3 heavyColor;
     uniform float speedColors;
+    uniform float heavyTint;
     varying float heavy;
     varying float fast;
     void main() {
@@ -120,7 +170,9 @@ const material = new THREE.ShaderMaterial({
       vec3 bySpeed = fast < 0.5 ? mix(slowColor, midColor, fast * 2.0) : mix(midColor, fastColor, fast * 2.0 - 1.0);
       vec3 star = mix(color, bySpeed, speedColors);
       // heavy bodies warm white either way
-      gl_FragColor = vec4(mix(star, heavyColor, clamp(heavy * 2.0, 0.0, 1.0)) * a, 1.0);
+      gl_FragColor = vec4(mix(star, heavyColor, clamp(heavy * 2.0, 0.0, 1.0) * heavyTint) * a, 1.0);
+      // turns the color into the screen's color space, so it looks the same with the effects on or off
+      #include <colorspace_fragment>
     }
   `,
   // overlapping stars add up and glow
@@ -145,17 +197,15 @@ for (let i = 0; i < SKY_STARS; i++) {
 }
 const skyGeometry = new THREE.BufferGeometry();
 skyGeometry.setAttribute('position', new THREE.BufferAttribute(skyPositions, 3));
-const sky = new THREE.Points(
-  skyGeometry,
-  // dim enough to stay under the glow threshold, a fixed size so zooming does not change them
-  new THREE.PointsMaterial({ color: new THREE.Color(0.35, 0.38, 0.45), size: window.devicePixelRatio, sizeAttenuation: false, depthWrite: false }),
-);
+// dim enough to stay under the glow threshold (brightness about 0.2 against 0.3), a fixed size so zooming does not change them
+const skyMaterial = new THREE.PointsMaterial({ color: new THREE.Color(0.18, 0.2, 0.25), size: pixelRatio(), sizeAttenuation: false, depthWrite: false });
+const sky = new THREE.Points(skyGeometry, skyMaterial);
 scene.add(sky);
 
 // the effects run after the scene is drawn: trails first, so the streaks glow too, then the glow
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const trails = new AfterimagePass(0.9);
+const trails = new AfterimagePass(TRAIL_KEEP_PER_60TH);
 trails.enabled = START_EFFECTS.trails;
 composer.addPass(trails);
 // strength, how far it spreads, and how bright a spot has to be before it glows
@@ -163,6 +213,9 @@ const glow = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.inn
 glow.enabled = START_EFFECTS.glow;
 composer.addPass(glow);
 composer.addPass(new OutputPass());
+
+// set when the trails should start clean, so old streaks from before a switch or a new scene do not show up
+let trailsFresh = true;
 
 // points the three attributes straight at the x, y, z arrays inside wasm memory, no copy
 // has to run again whenever the body count changes, since the arrays may have moved
@@ -183,6 +236,15 @@ function attachViews() {
 
   // total mass, for sizing dots and for the speed of spawned bodies
   material.uniforms.total.value = masses.reduce((a, b) => a + b, 0);
+
+  // when every body weighs the same (the figure-eight) none of them is the heavy one, so skip the warm tint
+  let lightest = Infinity;
+  let heaviest = 0;
+  for (const m of masses) {
+    lightest = Math.min(lightest, m);
+    heaviest = Math.max(heaviest, m);
+  }
+  material.uniforms.heavyTint.value = heaviest > lightest * 1.001 ? 1 : 0;
 }
 
 // the root mean square speed of every body, the white point for the speed colors
@@ -231,12 +293,13 @@ function load(which: number, n: number) {
   sim._load_scene(which, n, 1, preset.eps, theta);
   attachViews();
   material.uniforms.typicalSpeed.value = typicalSpeed();
-  material.uniforms.size.value = preset.dot * window.devicePixelRatio;
+  material.uniforms.size.value = preset.dot * pixelRatio();
   // tall narrow screens see less side to side, so the camera backs off until the scene fits across
   const back = preset.camera * Math.max(1, 1 / camera.aspect);
   camera.position.set(0, -0.8 * back, 0.6 * back);
   controls.target.set(0, 0, 0);
   simTime = 0;
+  trailsFresh = true;
   resetBaseline();
 }
 
@@ -247,33 +310,58 @@ const actions: Actions = {
   setSpeed: (s) => (speed = s),
   setTheta: (t) => (theta = t),
   setGlow: (on) => (glow.enabled = on),
-  setTrails: (on) => (trails.enabled = on),
-  setSpeedColors: (on) => (material.uniforms.speedColors.value = on ? 1 : 0),
+  setTrails: (on) => {
+    trails.enabled = on;
+    trailsFresh = true;
+  },
+  setSpeedColors: (on) => {
+    material.uniforms.speedColors.value = on ? 1 : 0;
+    // the velocities were not being sent to the gpu while this was off, so send them now
+    for (const name of ['vx', 'vy', 'vz']) geometry.getAttribute(name).needsUpdate = true;
+  },
 };
 load(START_PRESET, defaultN(START_PRESET));
 createRoot(document.getElementById('panel')!).render(createElement(Panel, { actions }));
 
-// keeps the picture the right shape when the window changes size
+// keeps the picture the right shape and sharpness when the window changes size or moves to another screen
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
+  renderer.setPixelRatio(pixelRatio());
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setPixelRatio(pixelRatio());
   composer.setSize(window.innerWidth, window.innerHeight);
+  material.uniforms.size.value = preset.dot * pixelRatio();
+  skyMaterial.size = pixelRatio();
 });
 
-// a click that did not turn into a drag drops a body where the pointer meets the flat z = 0 plane
+// a click or tap that did not turn into a drag drops a body where the pointer meets the flat z = 0 plane
 const raycaster = new THREE.Raycaster();
 const ground = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 let downX = 0;
 let downY = 0;
+// fingers on the screen right now, and whether a second one joined, which makes it a pinch and not a tap
+const pointersDown = new Set<number>();
+let pinched = false;
 renderer.domElement.addEventListener('pointerdown', (e) => {
-  if (e.button !== 0) return;
+  pointersDown.add(e.pointerId);
+  if (pointersDown.size > 1) pinched = true;
+  if (e.button !== 0 || !e.isPrimary) return;
   downX = e.clientX;
   downY = e.clientY;
 });
+// a finger that slides off the page or gets taken by the browser never spawns anything
+renderer.domElement.addEventListener('pointercancel', (e) => {
+  pointersDown.delete(e.pointerId);
+  if (pointersDown.size === 0) pinched = false;
+});
 renderer.domElement.addEventListener('pointerup', (e) => {
-  // only a plain left click or tap, the other buttons pan the camera
-  if (e.button !== 0) return;
+  pointersDown.delete(e.pointerId);
+  const wasPinch = pinched;
+  if (pointersDown.size === 0) pinched = false;
+
+  // only a plain left click or a one finger tap, the other buttons pan the camera
+  if (wasPinch || e.button !== 0 || !e.isPrimary) return;
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 5) return;
 
   // turns the screen point into a ray and finds where it crosses the plane
@@ -306,7 +394,8 @@ let last = performance.now();
 
 // runs once per screen refresh: catch the physics up in fixed steps, work on the energy sum, then draw
 function frame(now: number) {
-  backlog = paused ? 0 : backlog + Math.max(0, now - last) / 1000;
+  const elapsed = Math.max(0, now - last) / 1000;
+  backlog = paused ? 0 : backlog + elapsed;
   last = now;
 
   // as many whole steps as the backlog covers at the chosen speed
@@ -327,8 +416,9 @@ function frame(now: number) {
     stepsDone += done;
     simTime += done * preset.dt;
 
-    // tell three.js the positions changed so it sends them to the gpu again
-    for (const name of ['px', 'py', 'pz', 'vx', 'vy', 'vz']) geometry.getAttribute(name).needsUpdate = true;
+    // tell three.js the positions changed so it sends them to the gpu again, velocities only when the colors use them
+    for (const name of ['px', 'py', 'pz']) geometry.getAttribute(name).needsUpdate = true;
+    if (material.uniforms.speedColors.value) for (const name of ['vx', 'vy', 'vz']) geometry.getAttribute(name).needsUpdate = true;
   }
 
   // a slice of the energy sum, sized so a big scene spreads it over more frames
@@ -344,6 +434,11 @@ function frame(now: number) {
   } else if (now - energyStarted >= ENERGY_EVERY_MS) {
     startEnergy(now);
   }
+
+  // trails fade by real time, so they are the same length on a 60 Hz and a 180 Hz screen
+  // a fresh start keeps nothing from before, so no old streaks flash up
+  trails.damp = trailsFresh ? 0 : Math.pow(TRAIL_KEEP_PER_60TH, Math.min(elapsed, 0.25) * 60);
+  if (trails.enabled) trailsFresh = false;
 
   controls.update();
   // the background stars ride along with the camera so they always look infinitely far away

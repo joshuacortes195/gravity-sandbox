@@ -20,8 +20,8 @@ Each result records how it was measured:
 | [benchmarks.md](benchmarks.md) | Time per force pass for brute force and for Barnes-Hut at four values of theta, from 100 to 30,000 bodies, with the force error of each run |
 | [benchmarks.json](benchmarks.json) | The same benchmark numbers as data |
 | [disk-stability.md](disk-stability.md) | How long a disk galaxy stays a disk at different disk masses, and why the browser uses 0.005 |
-| [browser.md](browser.md) | Frame rate and time per physics step in the browser at 2000 bodies |
-| [speedups.md](speedups.md) | Time per step for the plain, SIMD and threaded WASM builds in the browser, and why SIMD did nothing at first |
+| [browser.md](browser.md) | Frame rate and time per physics step in the browser at 2000 bodies, and the 8x speed stall on Windows |
+| [speedups.md](speedups.md) | Time per step for the plain, SIMD and threaded WASM builds in the browser on the Mac and on a 16 thread Windows desktop, and why SIMD did nothing at first |
 | [presets.md](presets.md) | Timestep, softening and energy drift for each browser scene, and why the galaxy collision needs more softening |
 
 Both benchmark files are written by `tools/benchmark.cpp`. To measure again:
@@ -33,7 +33,7 @@ Both benchmark files are written by `tools/benchmark.cpp`. To measure again:
 
 ## Machine
 
-All native numbers come from one laptop:
+All native numbers come from one laptop. Some browser numbers also come from a Windows desktop (AMD Ryzen 7 3700X, 16 threads), and the files that use it say so:
 
 | | |
 | --- | --- |

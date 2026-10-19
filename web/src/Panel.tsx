@@ -79,10 +79,12 @@ export function Panel({ actions }: { actions: Actions }) {
     actions.setPaused(!paused);
   }
 
-  // space bar pauses and plays, unless a control has focus and wants the key itself
+  // space bar pauses and plays, unless a control has focus and wants the key itself (a checkbox ticks with space)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.code !== 'Space' || e.target instanceof HTMLSelectElement || e.target instanceof HTMLButtonElement) return;
+      const t = e.target;
+      const wantsSpace = t instanceof HTMLSelectElement || t instanceof HTMLButtonElement || (t instanceof HTMLInputElement && t.type === 'checkbox');
+      if (e.code !== 'Space' || wantsSpace) return;
       e.preventDefault();
       togglePause();
     }
@@ -195,6 +197,9 @@ export function Panel({ actions }: { actions: Actions }) {
             {TOUCH ? 'drag to turn, pinch to zoom, tap to drop in a body' : 'drag to turn, scroll to zoom, click to drop in a body, space to pause'}
           </p>
         </>
+      ) : TOUCH ? (
+        // phones start folded, so the one thing worth knowing stays visible under the header
+        <p className="hint">tap to drop in a body</p>
       ) : null}
     </div>
   );

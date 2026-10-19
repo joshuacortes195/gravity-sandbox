@@ -80,6 +80,10 @@ void run_on_threads(const std::function<void()>& job) {
   job();
 
   // the browser does not let the page's main thread sleep, so it spins until every helper is done
+  // natively it hands its core back between checks, in case there are more threads than cores
   while (pool.busy.load() > 0) {
+#ifndef __EMSCRIPTEN__
+    std::this_thread::yield();
+#endif
   }
 }

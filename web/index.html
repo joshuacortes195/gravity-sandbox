@@ -36,11 +36,17 @@
       /* styling for the live numbers, name on the left and value on the right */
       .readouts { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; margin: 0; }
       .readouts dd { margin: 0; text-align: right; color: #cde; }
-      .hint { margin: 0; color: #678; }
+      .hint { margin: 0; color: #8a9bb0; }
+      /* bigger checkboxes and sliders on touch screens, so a finger can hit them */
+      @media (pointer: coarse) {
+        .panel .effects input { width: 20px; height: 20px; }
+        .panel input[type='range'] { height: 28px; }
+        .panel .effects label { padding: 4px 0; }
+      }
       /* styling for the loading message in the middle of the screen */
       #status {
         position: fixed; inset: 0; display: grid; place-items: center;
-        font: 13px ui-monospace, Menlo, monospace; color: #678;
+        font: 13px ui-monospace, Menlo, monospace; color: #8a9bb0;
       }
     </style>
   </head>

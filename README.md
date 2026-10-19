@@ -43,7 +43,7 @@ Each scene's timestep and softening were picked by running it natively and watch
 - Comes with five scenes: a mini solar system, the figure-eight three-body orbit, a galaxy collision, a black hole tearing apart a star cluster, and a single disk galaxy
 - Has a control panel for pause, speed, tree accuracy (theta) and the number of stars. Space pauses, and the panel folds away
 - Picks the fastest build the browser allows (threads, then SIMD, then plain) and only downloads that one
-- Works on phones with touch controls, fewer stars and the panel folded up to start
+- Has a phone layout with touch controls, fewer stars, one thread and the panel folded up to start. I have not tested it on real phones yet
 - Lets you click anywhere to drop in a new body on a circular orbit
 - Shows a live energy drift readout so you can see how accurate the simulation is while it runs
 - Colors each star by its speed (slow orange, typical white, fast blue), with an optional glow, motion trails and faint background stars. Each look can be switched off in the panel, and glow starts off on phones
