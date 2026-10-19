@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 
 // the two headers that make the page cross-origin isolated, which browsers require before
-// they hand out shared memory for threads. netlify.toml sends the same ones on the live site
+// they hand out shared memory for threads. vercel.json sends the same ones on the live site
 const isolation = {
   'Cross-Origin-Opener-Policy': 'same-origin',
   'Cross-Origin-Embedder-Policy': 'require-corp',

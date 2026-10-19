@@ -120,7 +120,7 @@ Written test first.
 ### Phase 5: performance (done)
 
 - WASM SIMD build
-- pthreads build, with COOP and COEP headers in `netlify.toml`
+- pthreads build, with COOP and COEP headers in `netlify.toml` (now `vercel.json`)
 - Fall back to the single thread SIMD build when the page is not cross-origin isolated
 - Measure each build against the plain one at the same N, timestep and theta
 - Open questions: confirm WebGL accepts views into shared memory in every browser I support, Safari included. The main thread is not allowed to block, so the worker threads have to be created up front
@@ -134,7 +134,7 @@ Written test first.
 
 - UI pass (first round done)
 - README with gifs and the numbers table
-- Netlify deploy
+- Vercel deploy
 - Final project write-up
 - Done so far (commit 7348757):
   - the page downloads only the wasm build it will run: threads when cross-origin isolated, otherwise simd, otherwise the plain build if the browser has no simd
@@ -147,10 +147,10 @@ Written test first.
 - Settled: that stall was Chrome, not the sim. Chrome slows animation frames to about one a second in a window that is not in front, and the first reading was most likely taken in one, since it shows the same pattern. Checked in a background window: frames came about 1005 ms apart at 1x, 4x, 8x and even paused, while timers in the same tab still fired about 100 times a second and each frame's own work took about 13 ms (12.7 ms physics, under 1 ms for the energy sum, 0.2 ms to draw). The same scene at 8x in a window in front runs at about 80 fps
 - Next:
   1. ~~diagnose the 8x stall above~~ (settled above)
-  2. record gifs of the galaxy collision, the black hole and the disk. Plan: record the canvas in the page with `MediaRecorder` on `canvas.captureStream(30)`, then turn the webm into a small gif with ffmpeg
+  2. (skipped for now) record gifs of the galaxy collision, the black hole and the disk. Plan: record the canvas in the page with `MediaRecorder` on `canvas.captureStream(30)`, then turn the webm into a small gif with ffmpeg
   3. README: add the gifs, list the new panel features, keep the numbers tables
-  4. write-up in `docs/write-up.md`: what it is, the decisions table in short, the measured numbers, what went wrong and how it got fixed (Toomre clumps, galaxy softening, the SIMD pragma, the tree's lead shrinking)
-  5. Netlify deploy, then update the README with the live link
+  4. ~~write-up in `docs/write-up.md`~~ (done): what it is, the decisions table in short, the measured numbers, what went wrong and how it got fixed (Toomre clumps, galaxy softening, the SIMD pragma, the tree's lead shrinking)
+  5. Vercel deploy (switched from Netlify, `vercel.json` sends the same two headers), then update the README with the live link
 - Building on Windows: MSVC rejects `-Wextra`, so build the native code in WSL (Ubuntu with `g++`, `cmake` and `make`) or on the Mac. gcc warns that it ignores `#pragma clang loop`, which is expected. All 44 tests pass with g++ 15
 
 ## Known risks
