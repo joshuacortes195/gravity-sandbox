@@ -2,7 +2,11 @@
 
 A gravity N-body simulation that runs in the browser. The physics is written in C++ and compiled to WebAssembly, and three.js draws the bodies.
 
-This is a work in progress. The physics core has brute force gravity with softening, a Barnes-Hut octree for large scenes, a leapfrog integrator, and energy and momentum checks, with 44 tests. The browser build uses SIMD and splits the tree walk across threads when the page allows it. In the browser you can pick one of five scenes, change the speed, the tree accuracy and the number of stars, click to drop in a new body, and watch a live energy drift readout. There is no live demo yet.
+**Live demo: [gravity-sandbox-teal.vercel.app](https://gravity-sandbox-teal.vercel.app/)**
+
+The physics core has brute force gravity with softening, a Barnes-Hut octree for large scenes, a leapfrog integrator, and energy and momentum checks, with 44 tests. The browser build uses SIMD and splits the tree walk across threads when the page allows it. In the browser you can pick one of five scenes, change the speed, the tree accuracy and the number of stars, click to drop in a new body, and watch a live energy drift readout.
+
+How it was built, what I measured and what went wrong along the way is in [docs/write-up.md](docs/write-up.md).
 
 ## Numbers so far
 

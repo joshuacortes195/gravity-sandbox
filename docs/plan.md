@@ -130,7 +130,7 @@ Written test first.
 - Found while building it: SIMD did nothing at first. The compiler would not reorder the brute force sum, and a one line pragma fixed that. Native brute force got about 2.2x faster too, so I reran the Barnes-Hut benchmark and the tree's lead shrank
 - Still open: Safari, Firefox and phones are not measured, and I have not confirmed WebGL draws from views into shared memory in Safari. One reading of the live page showed no clear gain from threads, which I have not explained yet
 
-### Phase 6: polish and ship (in progress)
+### Phase 6: polish and ship (done)
 
 - UI pass (first round done)
 - README with gifs and the numbers table
@@ -149,9 +149,10 @@ Written test first.
 - Next:
   1. ~~diagnose the 8x stall above~~ (settled above)
   2. (skipped for now) record gifs of the galaxy collision, the black hole and the disk. Plan: record the canvas in the page with `MediaRecorder` on `canvas.captureStream(30)`, then turn the webm into a small gif with ffmpeg
-  3. README: add the gifs, list the new panel features, keep the numbers tables
+  3. ~~README~~ (done without the gifs): add the gifs, list the new panel features, keep the numbers tables
   4. ~~write-up in `docs/write-up.md`~~ (done): what it is, the decisions table in short, the measured numbers, what went wrong and how it got fixed (Toomre clumps, galaxy softening, the SIMD pragma, the tree's lead shrinking)
-  5. Vercel deploy (switched from Netlify, `web/vercel.json` sends the same two headers, Vercel root directory set to `web`), then update the README with the live link
+  5. ~~Vercel deploy~~ (done, live at https://gravity-sandbox-teal.vercel.app/) (switched from Netlify, `web/vercel.json` sends the same two headers, Vercel root directory set to `web`), then update the README with the live link
+- Result: live at https://gravity-sandbox-teal.vercel.app/. Checked there in Chrome on Windows: cross-origin isolated, the simd + threads build on 16 threads, 119 steps a second on the galaxy collision at 1x, glow and speed colors drawing, no console errors. The gifs are left for later
 - Building on Windows: MSVC rejects `-Wextra`, so build the native code in WSL (Ubuntu with `g++`, `cmake` and `make`) or on the Mac. gcc warns that it ignores `#pragma clang loop`, which is expected. All 44 tests pass with g++ 15
 
 ## Known risks
