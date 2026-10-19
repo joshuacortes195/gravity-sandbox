@@ -120,7 +120,7 @@ Written test first.
 ### Phase 5: performance (done)
 
 - WASM SIMD build
-- pthreads build, with COOP and COEP headers in `netlify.toml` (now `vercel.json`)
+- pthreads build, with COOP and COEP headers in `netlify.toml` (now `web/vercel.json`)
 - Fall back to the single thread SIMD build when the page is not cross-origin isolated
 - Measure each build against the plain one at the same N, timestep and theta
 - Open questions: confirm WebGL accepts views into shared memory in every browser I support, Safari included. The main thread is not allowed to block, so the worker threads have to be created up front
@@ -151,7 +151,7 @@ Written test first.
   2. (skipped for now) record gifs of the galaxy collision, the black hole and the disk. Plan: record the canvas in the page with `MediaRecorder` on `canvas.captureStream(30)`, then turn the webm into a small gif with ffmpeg
   3. README: add the gifs, list the new panel features, keep the numbers tables
   4. ~~write-up in `docs/write-up.md`~~ (done): what it is, the decisions table in short, the measured numbers, what went wrong and how it got fixed (Toomre clumps, galaxy softening, the SIMD pragma, the tree's lead shrinking)
-  5. Vercel deploy (switched from Netlify, `vercel.json` sends the same two headers), then update the README with the live link
+  5. Vercel deploy (switched from Netlify, `web/vercel.json` sends the same two headers, Vercel root directory set to `web`), then update the README with the live link
 - Building on Windows: MSVC rejects `-Wextra`, so build the native code in WSL (Ubuntu with `g++`, `cmake` and `make`) or on the Mac. gcc warns that it ignores `#pragma clang loop`, which is expected. All 44 tests pass with g++ 15
 
 ## Known risks
