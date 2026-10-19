@@ -9,6 +9,7 @@ export interface Actions {
   setSpeed(speed: number): void;
   setTheta(theta: number): void;
   setGlow(on: boolean): void;
+  setLensing(on: boolean): void;
   setTrails(on: boolean): void;
   setSpeedColors(on: boolean): void;
 }
@@ -18,6 +19,7 @@ const EFFECTS = [
   { key: 'glow', label: 'glow' },
   { key: 'trails', label: 'trails' },
   { key: 'speedColors', label: 'color by speed' },
+  { key: 'lensing', label: 'black hole lensing' },
 ] as const;
 type Effect = (typeof EFFECTS)[number]['key'];
 
@@ -69,6 +71,7 @@ export function Panel({ actions }: { actions: Actions }) {
     const on = !effects[key];
     setEffects({ ...effects, [key]: on });
     if (key === 'glow') actions.setGlow(on);
+    else if (key === 'lensing') actions.setLensing(on);
     else if (key === 'trails') actions.setTrails(on);
     else actions.setSpeedColors(on);
   }
@@ -184,7 +187,8 @@ export function Panel({ actions }: { actions: Actions }) {
 
           {/* switches for the looks, none of them touch the physics */}
           <div className="effects">
-            {EFFECTS.map((e) => (
+            {/* lensing only means something on a scene with a black hole */}
+            {EFFECTS.filter((e) => e.key !== 'lensing' || p.lightSpeed !== undefined).map((e) => (
               <label key={e.key}>
                 <input type="checkbox" checked={effects[e.key]} onChange={() => toggleEffect(e.key)} />
                 {e.label}

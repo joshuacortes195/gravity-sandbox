@@ -295,3 +295,42 @@ Questions I should be able to answer:
 There is one build per flag set: plain (the baseline I measure against), SIMD, and SIMD plus threads. Each one needs its own copy of the core, because with threads every file has to be built with `-pthread`.
 
 Code: `core/threads.cpp`, the walk in `compute_accel_tree` in `core/octree.cpp`, the three builds in `CMakeLists.txt`, the build picked in `web/src/main.ts`, the benchmark page in `web/src/bench.ts`.
+
+
+## Drawing the black hole
+
+Before this, the black hole was just a big warm dot. You could only tell it was a black hole from how the stars moved. Now the page draws what a camera near it would see: a black shadow, a thin ring of light at its edge, and the stars behind it bent into arcs. I took the shadow formula from my event-horizon project, which ray traces a black hole properly.
+
+The physics stays Newtonian. Only the drawing uses relativity. Newtonian gravity has no speed of light, so to draw a horizon I have to pick one. With G = 1, the hole's mass in length units is M = m / c^2, and every black hole formula uses that M. The scene uses c = 8, so with the hole's mass of 1:
+
+- the horizon is at 2M = 2 / 64 = 0.031
+- the shadow, seen from far away, has radius 3 sqrt(3) M = 0.081. That is bigger than the horizon, because light only has to come within the photon sphere at 3M to get caught, not hit the horizon
+- the cluster's center dips to 0.15 from the hole and its radius is 0.1, so I estimate its closest stars get to roughly 0.05, outside the horizon, so nothing needs to be swallowed (swallowing is out of scope). I worked that out, I did not measure it
+
+I picked c = 8 so the shadow is big enough to see. At c = 14 it was only a few pixels across. The catch: at the closest pass, r = 0.15, the orbit speed sqrt(2M / r) is about 3.7, nearly half of that speed of light, and stars that dip closer go faster still. Real orbits there would follow general relativity, not Newton. So the drawing is right for a hole of this size, and the motion near it is only roughly right.
+
+The shadow's size on screen uses the exact formula for a camera at rest at distance r from the hole (Synge, 1966), the same one event-horizon tests its ray tracer against:
+
+sin(alpha) = (3 sqrt(3) M / r) sqrt(1 - 2M / r)
+
+Lensing is a post-processing pass over the finished picture. For each pixel at angle theta from the hole, the point mass lens equation says the light really came from angle beta:
+
+beta = theta - theta_E^2 / theta
+
+theta_E is the Einstein radius, sqrt(4M D_ls / (D_l D_s)), where D_l is the distance to the hole, D_s to the light source and D_ls from the hole to the source. A star exactly behind the hole at the Einstein radius turns into a full ring. When beta comes out negative, the light came from the other side of the hole, which is why each star behind it shows up twice, once on each side. The pixel just copies the color from where the light came from. Lensing stretches the picture but doesn't change how bright each bit of sky is (surface brightness is conserved), so no brightness change is needed.
+
+What it gets wrong, on purpose, to stay cheap:
+
+- it bends a flat picture, not 3D light paths. Everything behind is treated as one sheet sitting as far behind the hole as the camera is in front (D_ls = D_l). Stars in front of the hole get bent too, when they shouldn't be
+- the lens formula is the weak field version. It is right far from the hole and wrong near the shadow's edge, where light can loop all the way around
+- that looping light is what makes the photon ring, a squeezed picture of everything around the hole. The formula can't make it, so I draw a thin ring at the shadow's edge whose brightness is the average light sampled on a circle around the hole. It brightens when the cluster swings past and fades when nothing is near, which is how the real one behaves, but it is an approximation
+- the lens runs after the glow, so the glow cannot spill light back over the black shadow
+
+Questions an interviewer might ask:
+
+- Why is the shadow bigger than the horizon? Light doesn't need to aim at the horizon to fall in. Anything that comes within the photon sphere at 3M spirals in, and seen from far away that edge sits at 3 sqrt(3) M, about 2.6 times the horizon radius
+- Why does lensing make two images? The hole bends light passing on either side toward it, so light from one star can reach the camera around the left side and around the right side
+- Is this general relativity? Only the drawing. The forces are still Newton's, so the motion right next to the hole is only roughly right
+- What does surface brightness conservation mean here? Lensing can stretch a star into an arc, which makes it brighter overall (more of it on screen), but each patch of the arc is exactly as bright as the matching patch of the star
+
+Code: the `lens` pass and `updateLens` in `web/src/main.ts`, `lightSpeed` in `web/src/presets.ts`.

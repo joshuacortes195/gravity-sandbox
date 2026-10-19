@@ -12,6 +12,7 @@ I built it as a portfolio project, and I cared more about the physics being righ
 - Three WebAssembly builds: plain, SIMD, and SIMD with threads. The page downloads only the one the browser can run
 - Five scenes: a mini solar system, the figure-eight orbit, a galaxy collision, a black hole against a star cluster, and a single disk galaxy
 - A control panel for pause, speed, tree accuracy and star count, click to drop in a body, and a live energy drift readout
+- A black hole that looks like one: a black shadow, a photon ring and gravitational lensing of the stars behind it, drawn with relativity while the gravity itself stays Newtonian
 
 ## The decisions, in short
 

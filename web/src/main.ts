@@ -5,6 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { AfterimagePass } from 'three/addons/postprocessing/AfterimagePass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Sim } from './wasm/sim';
@@ -120,6 +121,8 @@ const material = new THREE.ShaderMaterial({
     speedColors: { value: START_EFFECTS.speedColors ? 1 : 0 },
     // 1 tints heavy bodies warm, 0 for scenes where every body weighs the same and none stands out
     heavyTint: { value: 1 },
+    // bodies this heavy or heavier are not drawn, so a black hole shows as its shadow and not a glowing dot
+    hideMass: { value: Infinity },
     color: { value: new THREE.Color(0.55, 0.7, 1.0) },
     slowColor: { value: new THREE.Color(1.0, 0.45, 0.2) },
     midColor: { value: new THREE.Color(1.0, 0.92, 0.82) },
@@ -137,9 +140,16 @@ const material = new THREE.ShaderMaterial({
     uniform float size;
     uniform float total;
     uniform float typicalSpeed;
+    uniform float hideMass;
     varying float heavy;
     varying float fast;
     void main() {
+      // a hidden body goes outside the view with no size, so nothing of it gets drawn
+      if (m >= hideMass) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        gl_PointSize = 0.0;
+        return;
+      }
       vec4 mv = modelViewMatrix * vec4(px, py, pz, 1.0);
       gl_Position = projectionMatrix * mv;
       // share of the total mass, cube rooted so a sun and a planet both stay visible
@@ -202,7 +212,77 @@ const skyMaterial = new THREE.PointsMaterial({ color: new THREE.Color(0.18, 0.2,
 const sky = new THREE.Points(skyGeometry, skyMaterial);
 scene.add(sky);
 
-// the effects run after the scene is drawn: trails first, so the streaks glow too, then the glow
+// bends the finished picture around a black hole, the way its gravity bends light (see physics-notes, drawing the black hole)
+// everything inside the shadow is black, everything else is pulled from where a point mass lens says the light came from
+const lens = new ShaderPass({
+  uniforms: {
+    tDiffuse: { value: null },
+    // where the hole sits on screen, 0 to 1 across and up
+    center: { value: new THREE.Vector2(0.5, 0.5) },
+    // screen width over height, so circles stay round
+    aspect: { value: 1 },
+    // how many screen heights one radian of view covers near the middle
+    perRadian: { value: 1 },
+    // the shadow's angular radius, and the einstein radius squared, both in radians
+    shadow: { value: 0 },
+    einstein2: { value: 0 },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform vec2 center;
+    uniform float aspect;
+    uniform float perRadian;
+    uniform float shadow;
+    uniform float einstein2;
+    varying vec2 vUv;
+    void main() {
+      // how far this pixel is from the hole, as an angle on the sky
+      vec2 d = (vUv - center) * vec2(aspect, 1.0);
+      float theta = length(d) / perRadian;
+      // inside the shadow every ray falls in, so nothing comes back
+      if (theta < shadow) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+      }
+      // the photon ring, a thin band just outside the shadow made of light that looped around the hole
+      // it is a squeezed picture of everything around the hole, so its brightness is the average light
+      // sampled on a circle around the hole, an approximation since the lens formula below cannot make it
+      if (theta < shadow * 1.12) {
+        vec3 around = vec3(0.0);
+        float reach = 2.0 * sqrt(einstein2) * perRadian;
+        for (int i = 0; i < 12; i++) {
+          float a = float(i) * 0.5236;
+          around += texture2D(tDiffuse, center + vec2(cos(a), sin(a)) * reach / vec2(aspect, 1.0)).rgb;
+        }
+        // brightest right at the shadow's edge, fading out across the band
+        float edge = 1.0 - (theta - shadow) / (shadow * 0.12);
+        gl_FragColor = vec4(around / 12.0 * 16.0 * edge, 1.0);
+        return;
+      }
+      // point mass lens: light seen at angle theta really came from beta, which goes negative (the far side) close in
+      float beta = theta - einstein2 / theta;
+      vec2 from = center + normalize(d) * beta * perRadian / vec2(aspect, 1.0);
+      // light from off the edge of the picture is just dark space
+      if (any(lessThan(from, vec2(0.0))) || any(greaterThan(from, vec2(1.0)))) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+      }
+      // lensing moves light around without making it brighter per patch of sky, so it is a plain copy
+      gl_FragColor = texture2D(tDiffuse, from);
+    }
+  `,
+});
+lens.enabled = false;
+
+// the effects run after the scene is drawn: trails first, so the streaks glow too, then the glow,
+// then the lens last, so the glow cannot spill back over the black shadow
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 const trails = new AfterimagePass(TRAIL_KEEP_PER_60TH);
@@ -212,6 +292,7 @@ composer.addPass(trails);
 const glow = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.8, 0.2, 0.3);
 glow.enabled = START_EFFECTS.glow;
 composer.addPass(glow);
+composer.addPass(lens);
 composer.addPass(new OutputPass());
 
 // set when the trails should start clean, so old streaks from before a switch or a new scene do not show up
@@ -258,6 +339,45 @@ function typicalSpeed() {
   let sum = 0;
   for (let i = 0; i < n; i++) sum += vx[i] * vx[i] + vy[i] * vy[i] + vz[i] * vz[i];
   return Math.sqrt(sum / Math.max(1, n)) || 1;
+}
+
+// whether the panel has lensing on, it only does anything on a scene with a black hole
+let lensing = START_EFFECTS.lensing;
+const hole = new THREE.Vector3();
+const toHole = new THREE.Vector3();
+const facing = new THREE.Vector3();
+
+// finds the black hole (body 0) on screen each frame and works out how big its shadow and lensing look from here
+function updateLens() {
+  const c = preset.lightSpeed;
+  const masses = geometry.getAttribute('m').array as Float32Array;
+  // its mass in length units, GM / c^2 with G = 1, the M in every black hole formula
+  const m = c ? masses[0] / (c * c) : 0;
+  hole.set(
+    (geometry.getAttribute('px').array as Float32Array)[0],
+    (geometry.getAttribute('py').array as Float32Array)[0],
+    (geometry.getAttribute('pz').array as Float32Array)[0],
+  );
+  toHole.subVectors(hole, camera.position);
+  const dist = toHole.length();
+  camera.getWorldDirection(facing);
+
+  // off when the switch is off, the scene has no hole, the hole is behind the camera, or the camera is nearly inside it
+  lens.enabled = lensing && c !== undefined && toHole.dot(facing) > 0 && dist > 4 * m;
+  material.uniforms.hideMass.value = lens.enabled ? masses[0] : Infinity;
+  if (!lens.enabled) return;
+
+  camera.updateMatrixWorld();
+  hole.project(camera);
+  const u = lens.uniforms;
+  u.center.value.set((hole.x + 1) / 2, (hole.y + 1) / 2);
+  u.aspect.value = camera.aspect;
+  u.perRadian.value = 0.5 / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+  // the shadow's size for a camera at rest at this distance, sin(a) = (3 sqrt(3) M / r) sqrt(1 - 2M / r)
+  // the same formula event-horizon tests its ray tracer against
+  u.shadow.value = Math.asin(Math.min(1, ((3 * Math.sqrt(3) * m) / dist) * Math.sqrt(1 - (2 * m) / dist)));
+  // einstein radius squared, 4M D_ls / (D_l D_s), taking whatever is behind to sit as far behind the hole as the camera is in front
+  u.einstein2.value = (2 * m) / dist;
 }
 
 // what the panel has picked, read by the loop every frame
@@ -310,6 +430,7 @@ const actions: Actions = {
   setSpeed: (s) => (speed = s),
   setTheta: (t) => (theta = t),
   setGlow: (on) => (glow.enabled = on),
+  setLensing: (on) => (lensing = on),
   setTrails: (on) => {
     trails.enabled = on;
     trailsFresh = true;
@@ -443,8 +564,9 @@ function frame(now: number) {
   controls.update();
   // the background stars ride along with the camera so they always look infinitely far away
   sky.position.copy(camera.position);
+  updateLens();
   // straight to the screen when every effect is off, through the effects otherwise
-  if (glow.enabled || trails.enabled) composer.render();
+  if (glow.enabled || trails.enabled || lens.enabled) composer.render();
   else renderer.render(scene, camera);
 
   // sends fresh numbers to the panel twice a second
