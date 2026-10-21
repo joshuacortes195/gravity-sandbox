@@ -12,6 +12,8 @@ export interface Preset {
   // only for scenes with a black hole (always body 0): the speed of light used to draw its shadow and lensing
   // the physics never uses it, gravity stays newtonian
   lightSpeed?: number;
+  // how far above the orbit plane the camera starts, in degrees, when the scene wants something other than the usual
+  tilt?: number;
 }
 
 export const PRESETS: Preset[] = [
@@ -20,7 +22,8 @@ export const PRESETS: Preset[] = [
   // n here is stars per galaxy, so the scene has twice that plus the two centers
   { name: 'Galaxy collision', dt: 0.002, eps: 0.05, n: 1000, nMax: 5000, camera: 6, dot: 8, spawnMass: 0.3 },
   // c = 8 puts the horizon at 2M / c^2 = 0.031, big enough to see, inside the roughly 0.05 the cluster's closest stars get to
-  { name: 'Black hole vs cluster', dt: 0.002, eps: 0.01, n: 1000, nMax: 5000, camera: 3.5, dot: 6, spawnMass: 0.3, lightSpeed: 8 },
+  // the camera starts low beside the orbit plane, so the drawn disk crosses in front of the shadow
+  { name: 'Black hole vs cluster', dt: 0.002, eps: 0.01, n: 1000, nMax: 5000, camera: 3.5, dot: 6, spawnMass: 0.3, lightSpeed: 8, tilt: 6 },
   { name: 'Disk galaxy', dt: 0.002, eps: 0.01, n: 2000, nMax: 10000, camera: 2.7, dot: 6, spawnMass: 0.1 },
 ];
 

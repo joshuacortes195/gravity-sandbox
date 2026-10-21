@@ -46,7 +46,7 @@ Each scene's timestep and softening were picked by running it natively and watch
 - Has a phone layout with touch controls, fewer stars, one thread and the panel folded up to start. I have not tested it on real phones yet
 - Lets you click anywhere to drop in a new body on a circular orbit
 - Shows a live energy drift readout so you can see how accurate the simulation is while it runs
-- Draws the black hole the way a camera near it would see it: a black shadow sized with the exact formula for a non-spinning hole, a photon ring at its edge, and gravitational lensing that bends the stars behind it into arcs. Only the drawing uses relativity, the gravity is still Newton's
+- Draws the black hole the way a camera near it would see it, by tracing the light near it through the hole's gravity: a black shadow, a photon ring at its edge, and the stars behind it bent into arcs. A glowing gas disk is drawn around it too, and you see it from the side so it crosses in front of the shadow. The disk is only a picture, it has no mass and the sim never sees it. Only the drawing uses relativity, the gravity is still Newton's
 - Colors each star by its speed (slow orange, typical white, fast blue), with an optional glow, motion trails and faint background stars. Each look can be switched off in the panel, and glow starts off on phones
 
 The full plan is in [docs/plan.md](docs/plan.md). My notes on the physics are in [docs/physics-notes.md](docs/physics-notes.md).

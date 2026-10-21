@@ -309,28 +309,62 @@ The physics stays Newtonian. Only the drawing uses relativity. Newtonian gravity
 
 I picked c = 8 so the shadow is big enough to see. At c = 14 it was only a few pixels across. The catch: at the closest pass, r = 0.15, the orbit speed sqrt(2M / r) is about 3.7, nearly half of that speed of light, and stars that dip closer go faster still. Real orbits there would follow general relativity, not Newton. So the drawing is right for a hole of this size, and the motion near it is only roughly right.
 
-The shadow's size on screen uses the exact formula for a camera at rest at distance r from the hole (Synge, 1966), the same one event-horizon tests its ray tracer against:
+### How the picture gets made now: tracing the light
+
+My first version bent the finished picture with the point mass lens formula and painted a fake photon ring on top. Now it traces the light, with the same tracer as event-horizon.
+
+For each pixel, the shader starts a ray of light at the camera and runs it backward, the way the light came. It steps the ray through the hole's gravity with RK4, using the Schwarzschild pull on light, -3M h^2 x / r^5, where h is the ray's angular momentum. Then one of three things happens:
+
+- it drops under r = 2M, the horizon, so nothing came from there and the pixel stays black. That's the shadow
+- it gets back out with almost no bend left, so I take the direction it ends up going, find where that direction lands on the finished frame, and copy the color from there. If it lands off the edge of the screen, I draw a few faint made up stars instead
+- it crosses the hole's orbit plane inside the gas disk, so it picks up some glow and gets a bit dimmer, then keeps going (more on the disk below)
+
+The shadow, the thin photon ring at its edge, and the extra flipped images of stars behind the hole all come out of that loop by themselves. Nothing draws them on purpose. A ray that skims the photon sphere at 3M loops around before getting out, and that's the photon ring.
+
+The camera counts as holding still at its distance from the hole, so it sees the sky squeezed sideways a little. I stretch the sideways part of each ray by 1 / sqrt(1 - 2M / r) before tracing, same as event-horizon. That's what makes the shadow come out at the exact size for a camera at rest (Synge, 1966), which is what event-horizon tests its tracer against:
 
 sin(alpha) = (3 sqrt(3) M / r) sqrt(1 - 2M / r)
 
-Lensing is a post-processing pass over the finished picture. For each pixel at angle theta from the hole, the point mass lens equation says the light really came from angle beta:
+### The shortcut far from the hole
 
-beta = theta - theta_E^2 / theta
+Far from the hole light barely bends, so tracing it is a lot of work for a tiny bend. So every ray first gets its impact parameter b, how close it would pass the hole if it went straight. Far out, the bend still ahead of the ray is
 
-theta_E is the Einstein radius, sqrt(4M D_ls / (D_l D_s)), where D_l is the distance to the hole, D_s to the light source and D_ls from the hole to the source. A star exactly behind the hole at the Einstein radius turns into a full ring. When beta comes out negative, the light came from the other side of the hole, which is why each star behind it shows up twice, once on each side. The pixel just copies the color from where the light came from. Lensing stretches the picture but doesn't change how bright each bit of sky is (surface brightness is conserved), so no brightness change is needed.
+bend = (2 - 3s + s^3) M / b
 
-What it gets wrong, on purpose, to stay cheap:
+where s is how much the ray already points away from the hole (the cosine between the ray and the line from the hole to the camera). From far away, s = -1 and that's the textbook 4M / b. I got it by adding up the tracer's pull, 3M b^2 / r^4, along a straight line. My first try was (2M / b)(1 + cos), the Newton shaped version. I checked both against the full trace on the CPU, and the Newton shaped one was off by 3 to 4 pixels for a camera at the scene's distance, because the pull on light falls off faster than Newton's. The new one is off by about one pixel at the switch over, and that leftover is the next term in the bend, 15 pi M^2 / 4b^2.
 
-- it bends a flat picture, not 3D light paths. Everything behind is treated as one sheet sitting as far behind the hole as the camera is in front (D_ls = D_l). Stars in front of the hole get bent too, when they shouldn't be
-- the lens formula is the weak field version. It is right far from the hole and wrong near the shadow's edge, where light can loop all the way around
-- that looping light is what makes the photon ring, a squeezed picture of everything around the hole. The formula can't make it, so I draw a thin ring at the shadow's edge whose brightness is the average light sampled on a circle around the hole. It brightens when the cluster swings past and fades when nothing is near, which is how the real one behaves, but it is an approximation
-- the lens runs after the glow, so the glow cannot spill light back over the black shadow
+So a ray only uses the formula when that next term is under half a pixel. On a 1080 pixel tall screen that's b above roughly 165M. Everything closer gets the full trace.
+
+That cutoff is big. The scene's camera starts 224M from the hole, and even the corner of the screen has b of about 154M, so at the starting view every pixel gets traced and the shortcut does nothing. It only kicks in once you zoom out or look away from the hole. On this PC the starting view still runs fine, but I haven't checked phones, where lensing is on by default and the screen has twice the pixels per point. Adding the next term of the bend to the formula would shrink the cutoff a lot, if phones turn out to need it.
+
+### The gas disk is a picture
+
+There's now a glowing gas disk around the hole. It is only drawn. It has no mass, doesn't pull on anything, isn't in the energy readout, and the sim never knows it's there. The gravity in this project is still Newton's. I added it because a bare black hole against a few stars doesn't look like much, and my event-horizon project already had the code.
+
+What is real about how it's drawn:
+
+- it sits in the hole's orbit plane, from 6M (the innermost stable circular orbit) out to 20M
+- each ring turns at its orbit speed r^-1.5, timed by sim time, so the inner gas winds ahead and the clumps shear into spirals, and it holds still when the sim is paused. The units check out: at 9.6M, the cluster's closest pass, the gas turns at the same rate as a star on a circular orbit there. The cluster's own stars go about 1.35 times faster at that point, since they're on a plunging orbit (eccentricity 0.82) and not a circle
+- its color is a blackbody at the thin disk temperature for that radius, hottest a bit outside 6M
+- it's shifted by gravitational redshift and by Doppler: the side coming toward the camera is bluer and much brighter, the side going away is dimmer and redder
+- because it's traced, light from the disk's far side gets bent up over the top of the shadow, and from the side you see the disk cross in front of the shadow
+
+What is art: the clumpy texture is made up noise, the gas is see through on purpose, the 3500 K is a look choice (real disks are far hotter and glow blue white), and the brightness is tuned so the glow pass doesn't blow it out.
+
+### What it still gets wrong
+
+- every escaped ray copies its color from the finished frame, which treats everything as far behind the hole. Stars in front of the hole get bent too, when they shouldn't be
+- the disk is drawn on top of whatever the frame shows. A star passing between the camera and the disk still gets covered by it
+- the black hole pass runs before the glow, so the disk glows, but the glow from bright stars and gas also spills a little onto the shadow
+- the camera starts low beside the disk, 6 degrees above the orbit plane, so the disk crosses the shadow. The other scenes start at about 37 degrees
 
 Questions an interviewer might ask:
 
 - Why is the shadow bigger than the horizon? Light doesn't need to aim at the horizon to fall in. Anything that comes within the photon sphere at 3M spirals in, and seen from far away that edge sits at 3 sqrt(3) M, about 2.6 times the horizon radius
+- Why trace backward from the camera? Only light that reaches the camera matters, so one ray per pixel is all the work there is
 - Why does lensing make two images? The hole bends light passing on either side toward it, so light from one star can reach the camera around the left side and around the right side
+- How do you know the shortcut is safe? The term it leaves out is 15 pi M^2 / 4b^2, and the formula is only used where that's under half a pixel. I checked the switch over against the full trace
 - Is this general relativity? Only the drawing. The forces are still Newton's, so the motion right next to the hole is only roughly right
-- What does surface brightness conservation mean here? Lensing can stretch a star into an arc, which makes it brighter overall (more of it on screen), but each patch of the arc is exactly as bright as the matching patch of the star
+- Is the disk real? No. It's drawn from the traced light but never simulated
 
-Code: the `lens` pass and `updateLens` in `web/src/main.ts`, `lightSpeed` in `web/src/presets.ts`.
+Code: `web/src/blackhole.frag` (the trace, the shortcut and the disk), the `lens` pass and `updateLens` in `web/src/main.ts`, `lightSpeed` and `tilt` in `web/src/presets.ts`.

@@ -19,7 +19,7 @@ const EFFECTS = [
   { key: 'glow', label: 'glow' },
   { key: 'trails', label: 'trails' },
   { key: 'speedColors', label: 'color by speed' },
-  { key: 'lensing', label: 'black hole lensing' },
+  { key: 'lensing', label: 'black hole lensing and disk' },
 ] as const;
 type Effect = (typeof EFFECTS)[number]['key'];
 

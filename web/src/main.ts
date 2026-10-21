@@ -12,6 +12,7 @@ import type { Sim } from './wasm/sim';
 import { Panel, type Actions } from './Panel';
 import { PRESETS, START_EFFECTS, START_PRESET, START_THETA, TOUCH, defaultN } from './presets';
 import { setReadout } from './store';
+import blackholeFrag from './blackhole.frag?raw';
 
 // physics steps per real second at 1x speed, and the most time one frame may spend on physics
 // past that budget the sim slows down instead of the frame rate falling apart
@@ -212,20 +213,23 @@ const skyMaterial = new THREE.PointsMaterial({ color: new THREE.Color(0.18, 0.2,
 const sky = new THREE.Points(skyGeometry, skyMaterial);
 scene.add(sky);
 
-// bends the finished picture around a black hole, the way its gravity bends light (see physics-notes, drawing the black hole)
-// everything inside the shadow is black, everything else is pulled from where a point mass lens says the light came from
+// the drawn gas disk, its outer edge in M and its hottest ring in kelvin, the same look as event-horizon's cinematic mode
+const DISK_OUTER = 20;
+const DISK_PEAK = 3500;
+
+// draws the black hole over the finished picture: traced light near it, bent light further out and a glowing gas disk
+// the disk is only drawn, it has no mass and the sim never sees it (see physics-notes, drawing the black hole)
 const lens = new ShaderPass({
   uniforms: {
     tDiffuse: { value: null },
-    // where the hole sits on screen, 0 to 1 across and up
-    center: { value: new THREE.Vector2(0.5, 0.5) },
-    // screen width over height, so circles stay round
-    aspect: { value: 1 },
-    // how many screen heights one radian of view covers near the middle
-    perRadian: { value: 1 },
-    // the shadow's angular radius, and the einstein radius squared, both in radians
-    shadow: { value: 0 },
-    einstein2: { value: 0 },
+    camPos: { value: new THREE.Vector3() },
+    camRot: { value: new THREE.Matrix3() },
+    tanHalf: { value: new THREE.Vector2() },
+    viewProj: { value: new THREE.Matrix4() },
+    bTrace: { value: 0 },
+    outer: { value: DISK_OUTER },
+    peak: { value: DISK_PEAK },
+    time: { value: 0 },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -234,65 +238,22 @@ const lens = new ShaderPass({
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
   `,
-  fragmentShader: /* glsl */ `
-    uniform sampler2D tDiffuse;
-    uniform vec2 center;
-    uniform float aspect;
-    uniform float perRadian;
-    uniform float shadow;
-    uniform float einstein2;
-    varying vec2 vUv;
-    void main() {
-      // how far this pixel is from the hole, as an angle on the sky
-      vec2 d = (vUv - center) * vec2(aspect, 1.0);
-      float theta = length(d) / perRadian;
-      // inside the shadow every ray falls in, so nothing comes back
-      if (theta < shadow) {
-        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-        return;
-      }
-      // the photon ring, a thin band just outside the shadow made of light that looped around the hole
-      // it is a squeezed picture of everything around the hole, so its brightness is the average light
-      // sampled on a circle around the hole, an approximation since the lens formula below cannot make it
-      if (theta < shadow * 1.12) {
-        vec3 around = vec3(0.0);
-        float reach = 2.0 * sqrt(einstein2) * perRadian;
-        for (int i = 0; i < 12; i++) {
-          float a = float(i) * 0.5236;
-          around += texture2D(tDiffuse, center + vec2(cos(a), sin(a)) * reach / vec2(aspect, 1.0)).rgb;
-        }
-        // brightest right at the shadow's edge, fading out across the band
-        float edge = 1.0 - (theta - shadow) / (shadow * 0.12);
-        gl_FragColor = vec4(around / 12.0 * 16.0 * edge, 1.0);
-        return;
-      }
-      // point mass lens: light seen at angle theta really came from beta, which goes negative (the far side) close in
-      float beta = theta - einstein2 / theta;
-      vec2 from = center + normalize(d) * beta * perRadian / vec2(aspect, 1.0);
-      // light from off the edge of the picture is just dark space
-      if (any(lessThan(from, vec2(0.0))) || any(greaterThan(from, vec2(1.0)))) {
-        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-        return;
-      }
-      // lensing moves light around without making it brighter per patch of sky, so it is a plain copy
-      gl_FragColor = texture2D(tDiffuse, from);
-    }
-  `,
+  fragmentShader: blackholeFrag,
 });
 lens.enabled = false;
 
-// the effects run after the scene is drawn: trails first, so the streaks glow too, then the glow,
-// then the lens last, so the glow cannot spill back over the black shadow
+// the effects run after the scene is drawn: trails first, so the streaks glow too, then the black hole,
+// then the glow, so the gas disk glows too
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 const trails = new AfterimagePass(TRAIL_KEEP_PER_60TH);
 trails.enabled = START_EFFECTS.trails;
 composer.addPass(trails);
+composer.addPass(lens);
 // strength, how far it spreads, and how bright a spot has to be before it glows
 const glow = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.8, 0.2, 0.3);
 glow.enabled = START_EFFECTS.glow;
 composer.addPass(glow);
-composer.addPass(lens);
 composer.addPass(new OutputPass());
 
 // set when the trails should start clean, so old streaks from before a switch or a new scene do not show up
@@ -344,10 +305,8 @@ function typicalSpeed() {
 // whether the panel has lensing on, it only does anything on a scene with a black hole
 let lensing = START_EFFECTS.lensing;
 const hole = new THREE.Vector3();
-const toHole = new THREE.Vector3();
-const facing = new THREE.Vector3();
 
-// finds the black hole (body 0) on screen each frame and works out how big its shadow and lensing look from here
+// finds the black hole (body 0) each frame and hands the shader the camera as the hole sees it, in units of M
 function updateLens() {
   const c = preset.lightSpeed;
   const masses = geometry.getAttribute('m').array as Float32Array;
@@ -358,26 +317,24 @@ function updateLens() {
     (geometry.getAttribute('py').array as Float32Array)[0],
     (geometry.getAttribute('pz').array as Float32Array)[0],
   );
-  toHole.subVectors(hole, camera.position);
-  const dist = toHole.length();
-  camera.getWorldDirection(facing);
 
-  // off when the switch is off, the scene has no hole, the hole is behind the camera, or the camera is nearly inside it
-  lens.enabled = lensing && c !== undefined && toHole.dot(facing) > 0 && dist > 4 * m;
+  // off when the switch is off, the scene has no hole, or the camera is nearly inside it
+  lens.enabled = lensing && c !== undefined && camera.position.distanceTo(hole) > 4 * m;
   material.uniforms.hideMass.value = lens.enabled ? masses[0] : Infinity;
-  if (!lens.enabled) return;
+  if (!lens.enabled || !c) return;
 
   camera.updateMatrixWorld();
-  hole.project(camera);
   const u = lens.uniforms;
-  u.center.value.set((hole.x + 1) / 2, (hole.y + 1) / 2);
-  u.aspect.value = camera.aspect;
-  u.perRadian.value = 0.5 / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
-  // the shadow's size for a camera at rest at this distance, sin(a) = (3 sqrt(3) M / r) sqrt(1 - 2M / r)
-  // the same formula event-horizon tests its ray tracer against
-  u.shadow.value = Math.asin(Math.min(1, ((3 * Math.sqrt(3) * m) / dist) * Math.sqrt(1 - (2 * m) / dist)));
-  // einstein radius squared, 4M D_ls / (D_l D_s), taking whatever is behind to sit as far behind the hole as the camera is in front
-  u.einstein2.value = (2 * m) / dist;
+  u.camPos.value.subVectors(camera.position, hole).divideScalar(m);
+  u.camRot.value.setFromMatrix4(camera.matrixWorld);
+  const t = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+  u.tanHalf.value.set(t * camera.aspect, t);
+  u.viewProj.value.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+  // the bend formula leaves out a 15 pi M^2 / 4b^2 term, so it's only used where that's under half a pixel
+  const pixel = (2 * t) / renderer.domElement.height;
+  u.bTrace.value = Math.max(Math.sqrt((15 * Math.PI) / 4 / (pixel / 2)), DISK_OUTER + 5);
+  // the gas turns with sim time, so it holds still while paused. one sim time unit is c / M in units of M
+  u.time.value = (simTime * c) / m;
 }
 
 // what the panel has picked, read by the loop every frame
@@ -416,7 +373,9 @@ function load(which: number, n: number) {
   material.uniforms.size.value = preset.dot * pixelRatio();
   // tall narrow screens see less side to side, so the camera backs off until the scene fits across
   const back = preset.camera * Math.max(1, 1 / camera.aspect);
-  camera.position.set(0, -0.8 * back, 0.6 * back);
+  // tipped up from the orbit plane by the scene's tilt, about 37 degrees unless the scene says otherwise
+  const tilt = THREE.MathUtils.degToRad(preset.tilt ?? 36.87);
+  camera.position.set(0, -Math.cos(tilt) * back, Math.sin(tilt) * back);
   controls.target.set(0, 0, 0);
   simTime = 0;
   trailsFresh = true;
