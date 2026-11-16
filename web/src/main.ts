@@ -144,7 +144,12 @@ const material = new THREE.ShaderMaterial({
     uniform float hideMass;
     varying float heavy;
     varying float fast;
+    varying float bright;
     void main() {
+      // every star gets its own steady brightness from its place in the list, some a little dimmer and some a little brighter,
+      // so a crowd of them has depth and does not read as a sheet of identical dots
+      float pick = fract(sin(float(gl_VertexID) * 12.9898) * 43758.5453);
+      bright = 0.9 + 0.7 * pick * pick;
       // a hidden body goes outside the view with no size, so nothing of it gets drawn
       if (m >= hideMass) {
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
@@ -159,8 +164,9 @@ const material = new THREE.ShaderMaterial({
       // the floor keeps log2 away from 0 for a body dropped in at rest
       float speed = max(length(vec3(vx, vy, vz)), 1e-6);
       fast = clamp(0.5 + 0.5 * log2(speed / typicalSpeed), 0.0, 1.0);
-      // heavier bodies draw bigger, farther ones smaller, never under a pixel and a half
-      gl_PointSize = max(1.5, size * (1.0 + 8.0 * heavy) / -mv.z);
+      // heavier bodies draw bigger, farther ones smaller. the dot is a soft glow that fades toward its edge,
+      // so it is drawn wider than the hard dot it replaced and never under three pixels
+      gl_PointSize = max(3.0, 1.7 * size * (1.0 + 8.0 * heavy) / -mv.z);
     }
   `,
   fragmentShader: /* glsl */ `
@@ -173,10 +179,12 @@ const material = new THREE.ShaderMaterial({
     uniform float heavyTint;
     varying float heavy;
     varying float fast;
+    varying float bright;
     void main() {
-      // soft round dot instead of a square
-      float a = 1.0 - smoothstep(0.3, 0.5, length(gl_PointCoord - 0.5));
-      if (a <= 0.0) discard;
+      // a star of light: a tight bright core with a faint halo around it, fading smoothly to nothing at the edge of the dot
+      float d = 2.0 * length(gl_PointCoord - 0.5);
+      if (d >= 1.0) discard;
+      float a = bright * (exp(-d * d * 9.0) + 0.22 * exp(-d * d * 2.2)) * (1.0 - d * d);
       // slow stars orange, typical ones white, fast ones blue
       vec3 bySpeed = fast < 0.5 ? mix(slowColor, midColor, fast * 2.0) : mix(midColor, fastColor, fast * 2.0 - 1.0);
       vec3 star = mix(color, bySpeed, speedColors);
@@ -208,8 +216,16 @@ for (let i = 0; i < SKY_STARS; i++) {
 }
 const skyGeometry = new THREE.BufferGeometry();
 skyGeometry.setAttribute('position', new THREE.BufferAttribute(skyPositions, 3));
-// dim enough to stay under the glow threshold (brightness about 0.2 against 0.3), a fixed size so zooming does not change them
-const skyMaterial = new THREE.PointsMaterial({ color: new THREE.Color(0.18, 0.2, 0.25), size: pixelRatio(), sizeAttenuation: false, depthWrite: false });
+// most background stars are faint and a few stand out, some a touch warm and some a touch blue, like a real night sky
+const skyColors = new Float32Array(SKY_STARS * 3);
+for (let i = 0; i < SKY_STARS; i++) {
+  const level = 0.06 + 0.2 * Math.random() ** 3;
+  const warm = Math.random();
+  skyColors.set([level * (0.85 + 0.3 * warm), level, level * (1.15 - 0.3 * warm)], i * 3);
+}
+skyGeometry.setAttribute('color', new THREE.BufferAttribute(skyColors, 3));
+// all of them dim enough to stay under the glow threshold (at most about 0.26 against 0.3), a fixed size so zooming does not change them
+const skyMaterial = new THREE.PointsMaterial({ vertexColors: true, size: pixelRatio(), sizeAttenuation: false, depthWrite: false });
 const sky = new THREE.Points(skyGeometry, skyMaterial);
 scene.add(sky);
 
@@ -251,7 +267,8 @@ trails.enabled = START_EFFECTS.trails;
 composer.addPass(trails);
 composer.addPass(lens);
 // strength, how far it spreads, and how bright a spot has to be before it glows
-const glow = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.8, 0.2, 0.3);
+// a wider, slightly gentler glow than a tight one, so bright stars get a soft halo and not a hard bright blob
+const glow = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.7, 0.42, 0.3);
 glow.enabled = START_EFFECTS.glow;
 composer.addPass(glow);
 composer.addPass(new OutputPass());
